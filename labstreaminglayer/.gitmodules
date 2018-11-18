@@ -1,0 +1,148 @@
+[submodule "LSL/liblsl-Android"]
+	path = LSL/liblsl-Android
+	url = https://github.com/labstreaminglayer/liblsl-Android
+[submodule "LSL/liblsl-Csharp"]
+	path = LSL/liblsl-Csharp
+	url = https://github.com/labstreaminglayer/liblsl-Csharp
+[submodule "LSL/liblsl-Generic"]
+	path = LSL/liblsl-Generic
+	url = https://github.com/labstreaminglayer/liblsl-Generic
+[submodule "LSL/liblsl-Java"]
+	path = LSL/liblsl-Java
+	url = https://github.com/labstreaminglayer/liblsl-Java
+[submodule "LSL/liblsl-matlab"]
+	path = LSL/liblsl-Matlab
+	url = https://github.com/labstreaminglayer/liblsl-matlab
+[submodule "LSL/liblsl-Python"]
+	path = LSL/liblsl-Python
+	url = https://github.com/labstreaminglayer/liblsl-Python
+[submodule "LSL/liblsl"]
+	path = LSL/liblsl
+	url = https://github.com/labstreaminglayer/liblsl
+	update = rebase
+[submodule "Apps/OutOfTreeTest"]
+	path = Apps/OutOfTreeTest
+	url = https://github.com/labstreaminglayer/App-OutOfTreeTest.git
+[submodule "Apps/AudioCaptureWin"]
+	path = Apps/AudioCaptureWin
+	url = https://github.com/labstreaminglayer/App-AudioCaptureWin
+[submodule "Apps/BAlert"]
+	path = Apps/BAlert
+	url = https://github.com/labstreaminglayer/App-BAlert.git
+[submodule "Apps/BestPracticesGUI"]
+	path = Apps/BestPracticesGUI
+	url = https://github.com/labstreaminglayer/App-BestPracticesGUI.git
+[submodule "Apps/AMTIForcePlate"]
+	path = Apps/AMTIForcePlate
+	url = https://github.com/labstreaminglayer/App-AMTIForcePlate.git
+[submodule "Apps/EmbarcaderoXE"]
+	path = Apps/EmbarcaderoXE
+	url = https://github.com/labstreaminglayer/App-EmbarcaderoXE.git
+[submodule "Apps/LabRecorder"]
+	path = Apps/LabRecorder
+	url = https://github.com/labstreaminglayer/App-LabRecorder.git
+[submodule "Apps/Wiimote"]
+	path = Apps/Wiimote
+	url = https://github.com/labstreaminglayer/App-Wiimote.git
+[submodule "Apps/Enobio"]
+	path = Apps/Enobio
+	url = https://github.com/labstreaminglayer/App-Enobio.git
+[submodule "Apps/MATLABViewer"]
+	path = Apps/MATLABViewer
+	url = https://github.com/labstreaminglayer/App-MATLABViewer.git
+[submodule "Apps/PhaseSpace"]
+	path = Apps/PhaseSpace
+	url = https://github.com/labstreaminglayer/App-PhaseSpace.git
+[submodule "Apps/XDFBrowser"]
+	path = Apps/XDFBrowser
+	url = https://github.com/labstreaminglayer/App-XDFBrowser.git
+[submodule "Apps/Examples"]
+	path = Apps/Examples
+	url = https://github.com/labstreaminglayer/App-Examples.git
+[submodule "Apps/MINDO"]
+	path = Apps/MINDO
+	url = https://github.com/labstreaminglayer/App-MINDO.git
+[submodule "Apps/PupilLabs"]
+	path = Apps/PupilLabs
+	url = https://github.com/labstreaminglayer/App-PupilLabs.git
+[submodule "Apps/eegoSports"]
+	path = Apps/eegoSports
+	url = https://github.com/labstreaminglayer/App-eegoSports.git
+[submodule "Apps/Benchmarks"]
+	path = Apps/Benchmarks
+	url = https://github.com/labstreaminglayer/App-Benchmarks.git
+[submodule "Apps/EyeLink"]
+	path = Apps/EyeLink
+	url = https://github.com/labstreaminglayer/App-EyeLink.git
+[submodule "Apps/MQTT"]
+	path = Apps/MQTT
+	url = https://github.com/labstreaminglayer/App-MQTT.git
+[submodule "Apps/ReceiveVideo"]
+	path = Apps/ReceiveVideo
+	url = https://github.com/labstreaminglayer/App-ReceiveVideo.git
+[submodule "Apps/emotiv"]
+	path = Apps/emotiv
+	url = https://github.com/labstreaminglayer/App-emotiv.git
+[submodule "Apps/BioSemi"]
+	path = Apps/BioSemi
+	url = https://github.com/labstreaminglayer/App-BioSemi.git
+[submodule "Apps/EyeTribe"]
+	path = Apps/EyeTribe
+	url = https://github.com/labstreaminglayer/App-EyeTribe.git
+[submodule "Apps/Mouse"]
+	path = Apps/Mouse
+	url = https://github.com/labstreaminglayer/App-Mouse.git
+[submodule "Apps/SMIEyetracker"]
+	path = Apps/SMIEyetracker
+	url = https://github.com/labstreaminglayer/App-SMIEyetracker.git
+[submodule "Apps/g.Tec"]
+	path = Apps/g.Tec
+	url = https://github.com/labstreaminglayer/App-g.Tec.git
+[submodule "Apps/BrainProducts"]
+	path = Apps/BrainProducts
+	url = https://github.com/labstreaminglayer/App-BrainProducts.git
+[submodule "Apps/GameController"]
+	path = Apps/GameController
+	url = https://github.com/labstreaminglayer/App-GameController.git
+[submodule "Apps/Neuroscan"]
+	path = Apps/Neuroscan
+	url = https://github.com/labstreaminglayer/App-Neuroscan.git
+[submodule "Apps/SerialPort"]
+	path = Apps/SerialPort
+	url = https://github.com/labstreaminglayer/App-SerialPort.git
+[submodule "Apps/Cognionics"]
+	path = Apps/Cognionics
+	url = https://github.com/labstreaminglayer/App-Cognionics.git
+[submodule "Apps/Keyboard"]
+	path = Apps/Keyboard
+	url = https://github.com/labstreaminglayer/App-Keyboard.git
+[submodule "Apps/OpenVR"]
+	path = Apps/OpenVR
+	url = https://github.com/labstreaminglayer/App-OpenVR.git
+[submodule "Apps/StaticInfo"]
+	path = Apps/StaticInfo
+	url = https://github.com/labstreaminglayer/App-StaticInfo.git
+[submodule "Apps/EGIAmpServer"]
+	path = Apps/EGIAmpServer
+	url = https://github.com/labstreaminglayer/App-EGIAmpServer.git
+[submodule "Apps/KinectMocap"]
+	path = Apps/KinectMocap
+	url = https://github.com/labstreaminglayer/App-KinectMocap.git
+[submodule "Apps/OptiTrack"]
+	path = Apps/OptiTrack
+	url = https://github.com/labstreaminglayer/App-OptiTrack.git
+[submodule "Apps/Tobii"]
+	path = Apps/Tobii
+	url = https://github.com/labstreaminglayer/App-Tobii.git
+[submodule "App-BestPracticesGUI"]
+	path = App-BestPracticesGUI
+	url = https://github.com/labstreaminglayer/App-BestPracticesGUI.git
+[submodule "Apps/BrainAmpSeries"]
+	path = Apps/BrainAmpSeries
+	url = https://github.com/labstreaminglayer/App-BrainAmpSeries.git
+[submodule "Apps/MeasurementComputing"]
+	path = Apps/MeasurementComputing
+	url = https://github.com/labstreaminglayer/App-MeasurementComputing.git
+[submodule "Apps/NeuroscanAcquire"]
+	path = Apps/NeuroscanAcquire
+	url = https://github.com/labstreaminglayer/App-NeuroscanAcquire.git

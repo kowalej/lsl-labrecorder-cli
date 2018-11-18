@@ -1,0 +1,1 @@
+LSL for Android projects. See LSL/liblsl-Android/Android Studio for current procedure.

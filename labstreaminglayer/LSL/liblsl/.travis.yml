@@ -1,0 +1,23 @@
+language: cpp
+#compiler: clang # 3.5 instead of GCC 4.8
+dist: xenial
+env:
+  CMakeArgs=""
+script:
+- mkdir -p build/install
+- cd build
+- cmake --version
+- cmake -DCMAKE_BUILD_TYPE=Release -DLSL_LSLBOOST_PATH=lslboost -DLSL_UNIXFOLDERS=1 $CMakeArgs ../
+- cmake --build . --config Release --target install
+- cpack
+- cd ..
+matrix:
+  include:
+    - os: osx
+deploy:
+  skip_cleanup: true
+  provider: bintray
+  user: tstenner
+  key:
+    secure: "MGxCeZ7ENmWBFHNRNTaYNMLp/w08qSyOJK0iQ4LgqNX6H1lz3RdX9TL/BcmVbfZEKfKzTiDXASvsCeFMrvrQDgfR57tiQVwV3njapin1yhgDoFdxL/WvBznvRsLW1g55MacaDXke2Ez/mN3d1m0Ys923CHv/6lBpS3ZzhMnjFrNtF67nyMysVSW6BvrdW1SAYIM4DZknaq+/fP6xSF5MjlRJqL6GYuXXubunycfyND2ghlsAAbX/O21OA02BsyGMnGXet1Bu2dyweJ140lzTkbiLIlt539Wdunwr7PexNkolcXsa1V6qEppW5WVx8odtld5n7fkaAuPnmriwrDngplEZBkKo5USlh9TdIqcSuKWQy5mc3q+1gjz41DQffKgYq5p2Vf47YKMpvlZFH3oSnxi5811CDo4/hkTvkMmojKI8mNGQ2y/A7GHVdykvkIddkFuF/zjKDFUDPHdxejW0qLVkswhaSMfbn+ykv5ECZYrHUwF3UpQh3YTjtVbti+B/oDfBariIBqy9yS7fSkJBo3NScP75aMK79yivCAldgwGLaCCy1TIW5l7xfyr+bxPnU3emZIQho/4EkSk8eladfnJlNIbq/HbTKlbJLPJP/YsQnEQy3eSExOAUjVdmTD6Lm9GPguKaF4jPDNxf7iqpNjg02BPInj/+nrtdoZ5OqlQ="
+  file: .bintray.json

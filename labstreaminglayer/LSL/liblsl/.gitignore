@@ -1,0 +1,6 @@
+/build*/
+/CMakeLists.txt.user
+/CMakeLists.json
+/CMakeSettings.json
+/doc/output
+/.vs/
