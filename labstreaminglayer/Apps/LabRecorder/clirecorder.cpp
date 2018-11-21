@@ -30,7 +30,7 @@ bool find_streams(QString query, double timeout, std::vector<lsl::stream_info> &
 
 	bool match = false;
 	for (const auto &info : lsl::resolve_streams(timeout)) {
-		if (info.matches_query(query.toStdString().c_str())) {
+		if (query == "*" || info.matches_query(query.toStdString().c_str())) {
 			streams.emplace_back(info);
 			match = true;
 		}
@@ -38,22 +38,56 @@ bool find_streams(QString query, double timeout, std::vector<lsl::stream_info> &
 	return match;
 }
 
-int start_recording(QString query, int timeout) {
-	std::vector<lsl::stream_info> recordstreams;
-	if (find_streams(query, timeout, recordstreams)) {
-		std::cout << "Query matched " << recordstreams.size() << " streams:\n";
-		for (auto &stream : recordstreams) {
-			std::cout << "\n 1. " << stream.name() << " @ " << stream.hostname();
+void display_stream_info(std::vector<lsl::stream_info> &streams, bool matches, QString query) {
+	bool query_mode = !query.isEmpty();
+
+	if (matches) {
+		std::string preamble = query_mode ? "Query matched " : "Found "; 
+		std::cout << preamble << streams.size() << " stream" << (streams.size() > 1 ? "s:" : ":") << std::endl;
+		int index = 1;
+		for (auto &stream : streams) {
+			std::cout << index << ". " << stream.name() << " @ " << stream.hostname() << std::endl;
+			index++;
 		}
+		std::cout << std::endl;
 	} else {
-		std::cout << "Query did not match any streams.";
-		return 2;
+		if (query_mode) {
+			std::cout << "Query " << query.toStdString() << " did not match any streams.";
+		} else {
+			std::cout << "No streams were found.";
+		}
 	}
+}
+
+int execute_list_command(double timeout) {
+	std::vector<lsl::stream_info> streams;
+	bool matches = find_streams("*", timeout, streams);
+	display_stream_info(streams, matches, "");
+
+	return matches ? 0 : 2;
+}
+
+int execute_find_command(QString query, double timeout) {
+	std::vector<lsl::stream_info> streams;
+	bool matches = find_streams(query, timeout, streams);
+	display_stream_info(streams, matches, query);
+
+	return matches ? 0 : 2;
+}
+
+int execute_record_command(QString query, QString filename, double timeout) {
+	std::vector<lsl::stream_info> streams;
+	bool matches = find_streams(query, timeout, streams);
+	display_stream_info(streams, matches, query);
+
+	// End command if no matches found.
+	if (!matches) { return 2; }
 
 	std::vector<std::string> watchfor;
 	std::map<std::string, int> sync_options;
-	std::cout << "Starting the recording, press Enter to quit..." << std::endl;
-	recording r(query.toStdString(), recordstreams, watchfor, sync_options, true);
+	std::cout << "--- Starting the recording, press ENTER to quit... ---" << std::endl;
+	recording r(filename.toStdString(), streams, watchfor, sync_options, true);
+	std::cin.get();
 	return 0;
 }
 
@@ -66,10 +100,15 @@ void incorrect_usage(QCommandLineParser &parser, std::string message, bool show_
 	exit(2);
 }
 
+double parse_timeout(QString timeout_str) {
+	return timeout_str.isEmpty() ? 1 : std::stod(timeout_str.toStdString());
+}
+
 void process_command(QCommandLineParser &parser, QCoreApplication &app, QStringList &pos_args,
 	int expected_num_pos_args = 0) {
 	// Process args.
 	parser.process(app);
+	parser.process(QCoreApplication::arguments());
 	if (parser.isSet("help")) { parser.showHelp(); }
 	pos_args = parser.positionalArguments();
 	int num_pos_args = pos_args.count() - 1;
@@ -100,7 +139,7 @@ int main(int argc, char **argv) {
 											"find - Apply query to find LSL stream(s).\n");
 
 	// Timeout option (-t, --timeout).
-	QCommandLineOption timeoutOption(QStringList() << "t"
+	QCommandLineOption timeout_option(QStringList() << "t"
 												   << "timeout",
 		"How long (in seconds) to wait while resolving stream(s).");
 
@@ -115,7 +154,7 @@ int main(int argc, char **argv) {
 		parser.clearPositionalArguments();
 
 		// Add timeout option.
-		parser.addOption(timeoutOption);
+		parser.addOption(timeout_option);
 
 		// Describe recording command (basically for help only).
 		parser.addPositionalArgument(
@@ -134,13 +173,53 @@ int main(int argc, char **argv) {
 			"    Example 2 (CSV base name): recording.csv - outputs "
 			"recording<stream_name_here>.csv for each stream.");
 
-		QStringList positionalArgs;
-		process_command(parser, app, positionalArgs, 2);
-		QString query = positionalArgs[1];
-		QString file = positionalArgs[2];
-		int timeout = std::stoi(parser.value(timeoutOption).toStdString());
-		return start_recording(query, timeout);
-	} else {
+		QStringList positional_args;
+		process_command(parser, app, positional_args, 2);
+		QString query = positional_args[1];
+		QString filename = positional_args[2];
+		QString timeout_str = parser.value(timeout_option);
+		double timeout = parse_timeout(timeout_str);
+		return execute_record_command(query, filename, timeout);
+	} 
+	else if (command == "list") {
+		parser.clearPositionalArguments();
+
+		// Add timeout option.
+		parser.addOption(timeout_option);
+
+		// Describe find command (basically for help only).
+		parser.addPositionalArgument("list", "List all LSL streams.", "list [list_options]");
+
+		QStringList positional_args;
+		process_command(parser, app, positional_args, 0);
+		QString timeout_str = parser.value(timeout_option);
+		double timeout = parse_timeout(timeout_str);
+		return execute_list_command(timeout);
+	}
+	else if (command == "find") {
+		parser.clearPositionalArguments();
+
+		// Add timeout option.
+		parser.addOption(timeout_option);
+
+		// Describe find command (basically for help only).
+		parser.addPositionalArgument(
+			"find", "Find LSL stream(s).", "find [find_options]");
+
+		// Query option.
+		parser.addPositionalArgument("query",
+			"XML stream query: \n"
+			"    Example 1: \"type='EEG'\" \n"
+			"    Example 2: \"name='Tobii' and type='Eyetracker'\" \n");
+
+		QStringList positional_args;
+		process_command(parser, app, positional_args, 1);
+		QString query = positional_args[1];
+		QString timeout_str = parser.value(timeout_option);
+		double timeout = parse_timeout(timeout_str);
+		return execute_find_command(query, timeout);
+	}
+	else {
 		parser.process(app);
 		if (parser.isSet("help")) { parser.showHelp(); }
 		incorrect_usage(parser,
@@ -149,8 +228,4 @@ int main(int argc, char **argv) {
 			true);
 	}
 #pragma endregion
-
-	std::cin.get();
-
-	return 0;
 }
