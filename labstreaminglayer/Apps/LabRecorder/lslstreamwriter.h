@@ -10,6 +10,8 @@
 #include <type_traits>
 #include <vector>
 
+#include <lsl_cpp.h>
+
 #ifdef XDFZ_SUPPORT
 #include <boost/iostreams/filtering_stream.hpp>
 using outfile_t = boost::iostreams::filtering_ostream;
@@ -40,12 +42,14 @@ enum class file_type_t : uint16_t {
 class LSLStreamWriter {
 private:
 	outfile_t xdf_file_;
-	std::map<const streamid_t *, outfile_t> data_files_;
-	std::map<const streamid_t *, outfile_t> meta_files_;
+	std::map<const streamid_t *, outfile_t> data_files_ = std::map<const streamid_t *, outfile_t>();
+	std::map<const streamid_t *, outfile_t> meta_files_ = std::map<const streamid_t *, outfile_t>();
 
 	file_type_t filetype_;
 
-	outfile_t *_get_file(const streamid_t *streamid_p = nullptr);
+	outfile_t *_get_data_file(const streamid_t *streamid_p = nullptr);
+
+	outfile_t *_get_meta_file(const streamid_t *streamid_p);
 
 	void _write_chunk_header(
 		chunk_tag_t tag, std::size_t length, const streamid_t *streamid_p = nullptr);
@@ -61,7 +65,7 @@ public:
 	 * @param filename  Filename to write to
 	 */
 	LSLStreamWriter(const std::string &filename, file_type_t filetype_ = file_type_t::xdf,
-		std::map<const streamid_t *, std::string> stream_ids = {});
+		const std::vector<lsl::stream_info> &streams = {});
 
 	template <typename T>
 	void write_data_chunk(streamid_t streamid, const std::vector<double> &timestamps,

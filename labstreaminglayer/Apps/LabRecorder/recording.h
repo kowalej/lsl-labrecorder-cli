@@ -60,7 +60,7 @@ public:
 	*				  (e.g., "record from everything that's out there").
 	* @param collect_offsets Whether to collect time offset measurements periodically.
 	*/
-	recording(const std::string &filename,
+	recording(const std::string &filename, file_type_t file_type,
 			  const std::vector<lsl::stream_info> &streams,
 			  const std::vector<std::string> &watchfor,
 			  std::map<std::string, int> syncOptions,

@@ -107,7 +107,7 @@ int execute_record_command(
 	std::vector<std::string> watchfor;
 	std::map<std::string, int> sync_options;
 	std::cout << "--- Starting the recording, press ENTER to quit... ---" << std::endl;
-	recording r(filename.toStdString(), streams, watchfor, sync_options, true);
+	recording r(filename.toStdString(), file_type_t::csv, streams, watchfor, sync_options, true);
 	std::cin.get();
 	return 0;
 }
