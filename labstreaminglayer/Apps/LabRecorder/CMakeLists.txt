@@ -39,22 +39,22 @@ add_executable(${PROJECT_NAME} MACOSX_BUNDLE #WIN32
 	recording.h
 	recording.cpp
 	conversions.h
-	xdfwriter.h
-	xdfwriter.cpp
+	LSLStreamWriter.h
+	LSLStreamWriter.cpp
 )
 
 add_executable(LabRecorderCLI MACOSX_BUNDLE
 	clirecorder.cpp
 	recording.h
 	recording.cpp
-	xdfwriter.h
-	xdfwriter.cpp
+	LSLStreamWriter.h
+	LSLStreamWriter.cpp
 )
 
-add_executable(testxdfwriter
+add_executable(testLSLStreamWriter
 	test_xdf_writer.cpp
-	xdfwriter.h
-	xdfwriter.cpp
+	LSLStreamWriter.h
+	LSLStreamWriter.cpp
 )
 
 target_link_libraries(${PROJECT_NAME}
@@ -107,7 +107,7 @@ endif()
 
 installLSLApp(${PROJECT_NAME})
 installLSLApp(LabRecorderCLI)
-installLSLApp(testxdfwriter)
+installLSLApp(testLSLStreamWriter)
 installLSLAuxFiles(${PROJECT_NAME}
 	default_config.cfg
 )

@@ -1,7 +1,7 @@
-#include "xdfwriter.h"
+#include "LSLStreamWriter.h"
 
 int main(int argc, char** argv) {
-	XDFWriter w("test.xdf");
+	LSLStreamWriter w("test.xdf");
 	const uint32_t sid = 0x02C0FFEE;
 	const std::string footer(
 	    "<?xml version=\"1.0\"?>"

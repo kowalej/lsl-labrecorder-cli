@@ -11,7 +11,7 @@
 #include <thread>
 #include <type_traits>
 #include <lsl_cpp.h>
-#include "xdfwriter.h"
+#include "LSLStreamWriter.h"
 
 // timings in the recording process (e.g., rate of boundary chunks and for cases where a stream hangs)
 // approx. interval between boundary chunks
@@ -73,7 +73,7 @@ public:
 
 private:
 	// the file stream
-	XDFWriter file_;	// the file output stream
+	LSLStreamWriter file_;	// the file output stream
 	// static information
 	bool offsets_enabled_;					// whether to collect time offset information alongside with the stream contents
 	bool unsorted_;							// whether this file may contain unsorted chunks (e.g., of late streams)

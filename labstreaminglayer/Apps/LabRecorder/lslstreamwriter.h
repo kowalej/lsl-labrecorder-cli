@@ -3,6 +3,7 @@
 #include "conversions.h"
 
 #include <cassert>
+#include <map>
 #include <mutex>
 #include <sstream>
 #include <thread>
@@ -23,43 +24,57 @@ using streamid_t = uint32_t;
 enum class chunk_tag_t : uint16_t {
 	fileheader = 1,   // FileHeader chunk
 	streamheader = 2, // StreamHeader chunk
-	samples = 3,      // Samples chunk
+	samples = 3,	  // Samples chunk
 	clockoffset = 4,  // ClockOffset chunk
-	boundary = 5,     // Boundary chunk
+	boundary = 5,	 // Boundary chunk
 	streamfooter = 6, // StreamFooter chunk
 	undefined = 0
 };
 
-class XDFWriter {
+// Filetypes, currently support XDF and CSV.
+enum class file_type_t : uint16_t {
+	xdf = 1, // XDF
+	csv = 2, // CSV
+};
+
+class LSLStreamWriter {
 private:
-	outfile_t file_;
-	void _write_chunk_header(chunk_tag_t tag, std::size_t length,
-	                         const streamid_t* streamid_p = nullptr);
+	outfile_t xdf_file_;
+	std::map<const streamid_t *, outfile_t> data_files_;
+	std::map<const streamid_t *, outfile_t> meta_files_;
+
+	file_type_t filetype_;
+
+	outfile_t *_get_file(const streamid_t *streamid_p = nullptr);
+
+	void _write_chunk_header(
+		chunk_tag_t tag, std::size_t length, const streamid_t *streamid_p = nullptr);
 	std::mutex write_mut;
 
 	// write a generic chunk
-	void _write_chunk(chunk_tag_t tag, const std::string& content,
-	                  const streamid_t* streamid_p = nullptr);
+	void _write_chunk(
+		chunk_tag_t tag, const std::string &content, const streamid_t *streamid_p = nullptr);
 
 public:
 	/**
-	 * @brief XDFWriter Construct a XDFWriter object
+	 * @brief LSLStreamWriter Construct a LSLStreamWriter object
 	 * @param filename  Filename to write to
 	 */
-	XDFWriter(const std::string& filename);
+	LSLStreamWriter(const std::string &filename, file_type_t filetype_ = file_type_t::xdf,
+		std::map<const streamid_t *, std::string> stream_ids = {});
 
 	template <typename T>
-	void write_data_chunk(streamid_t streamid, const std::vector<double>& timestamps,
-	                      const T* chunk, uint32_t n_samples, uint32_t n_channels);
+	void write_data_chunk(streamid_t streamid, const std::vector<double> &timestamps,
+		const T *chunk, uint32_t n_samples, uint32_t n_channels);
 	template <typename T>
-	void write_data_chunk(streamid_t streamid, const std::vector<double>& timestamps,
-	                      const std::vector<T>& chunk, uint32_t n_channels) {
+	void write_data_chunk(streamid_t streamid, const std::vector<double> &timestamps,
+		const std::vector<T> &chunk, uint32_t n_channels) {
 		assert(timestamps.size() * n_channels == chunk.size());
 		write_data_chunk(streamid, timestamps, chunk.data(), timestamps.size(), n_channels);
 	}
 	template <typename T>
-	void write_data_chunk_nested(streamid_t streamid, const std::vector<double>& timestamps,
-	                             const std::vector<std::vector<T>>& chunk);
+	void write_data_chunk_nested(streamid_t streamid, const std::vector<double> &timestamps,
+		const std::vector<std::vector<T>> &chunk);
 
 	/**
 	 * @brief write_stream_header Write the stream header, see also
@@ -67,12 +82,12 @@ public:
 	 * @param streamid Numeric stream identifier
 	 * @param content XML-formatted stream header
 	 */
-	void write_stream_header(streamid_t streamid, const std::string& content);
+	void write_stream_header(streamid_t streamid, const std::string &content);
 	/**
 	 * @brief write_stream_footer
 	 * @see https://github.com/sccn/xdf/wiki/Specifications#streamfooter-chunk
 	 */
-	void write_stream_footer(streamid_t streamid, const std::string& content);
+	void write_stream_footer(streamid_t streamid, const std::string &content);
 	/**
 	 * @brief write_stream_offset Record the time discrepancy between the
 	 * streaming and the recording PC
@@ -86,7 +101,7 @@ public:
 	void write_boundary_chunk();
 };
 
-inline void write_ts(std::ostream& out, double ts) {
+inline void write_ts(std::ostream &out, double ts) {
 	// write timestamp
 	if (ts == 0)
 		out.put(0);
@@ -99,8 +114,8 @@ inline void write_ts(std::ostream& out, double ts) {
 }
 
 template <typename T>
-void XDFWriter::write_data_chunk(streamid_t streamid, const std::vector<double>& timestamps,
-                                 const T* chunk, uint32_t n_samples, uint32_t n_channels) {
+void LSLStreamWriter::write_data_chunk(streamid_t streamid, const std::vector<double> &timestamps,
+	const T *chunk, uint32_t n_samples, uint32_t n_channels) {
 	/**
 	  Samples data chunk: [Tag 3] [VLA ChunkLen] [StreamID] [VLA NumSamples]
 	  [NumSamples x [VLA TimestampLen] [TimeStampLen]
@@ -122,15 +137,15 @@ void XDFWriter::write_data_chunk(streamid_t streamid, const std::vector<double>&
 	std::string outstr(out.str());
 	// Replace length placeholder
 	auto s = static_cast<uint32_t>(n_samples);
-	std::copy(reinterpret_cast<char*>(&s), reinterpret_cast<char*>(&s+1), outstr.begin()+1);
+	std::copy(reinterpret_cast<char *>(&s), reinterpret_cast<char *>(&s + 1), outstr.begin() + 1);
 
 	std::lock_guard<std::mutex> lock(write_mut);
 	_write_chunk(chunk_tag_t::samples, outstr, &streamid);
 }
 
 template <typename T>
-void XDFWriter::write_data_chunk_nested(streamid_t streamid, const std::vector<double>& timestamps,
-                                        const std::vector<std::vector<T>>& chunk) {
+void LSLStreamWriter::write_data_chunk_nested(streamid_t streamid,
+	const std::vector<double> &timestamps, const std::vector<std::vector<T>> &chunk) {
 	if (chunk.size() == 0) return;
 	auto n_samples = timestamps.size();
 	if (timestamps.size() != chunk.size())
@@ -152,7 +167,7 @@ void XDFWriter::write_data_chunk_nested(streamid_t streamid, const std::vector<d
 	std::string outstr(out.str());
 	// Replace length placeholder
 	auto s = static_cast<uint32_t>(n_samples);
-	std::copy(reinterpret_cast<char*>(&s), reinterpret_cast<char*>(&s+1), outstr.begin()+1);
+	std::copy(reinterpret_cast<char *>(&s), reinterpret_cast<char *>(&s + 1), outstr.begin() + 1);
 	std::lock_guard<std::mutex> lock(write_mut);
 	_write_chunk(chunk_tag_t::samples, outstr, &streamid);
 }

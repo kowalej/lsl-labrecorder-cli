@@ -1,9 +1,14 @@
 #include "process.h"
 #include "recording.h"
-#include "xdfwriter.h"
+#include "LSLStreamWriter.h"
 #include <QCommandLineParser>
 #include <Windows.h>
+#include <conio.h>
+#include <iostream>
+#include <time.h>
 
+#define TIMEOUT_DEFAULT 5
+#define RESOLVE_TIMEOUT_DEFAULT 1
 
 std::string remove_chars(const std::string &source, const std::string &chars) {
 	std::string result = "";
@@ -24,12 +29,24 @@ bool replace(std::string &str, const std::string &from, const std::string &to) {
 	return true;
 }
 
-bool find_streams(QString query, double timeout, std::vector<lsl::stream_info> &streams) {
+bool find_streams(
+	QString query, double timeout, double resolve_timeout, std::vector<lsl::stream_info> &streams) {
 	query =
 		query.replace("\"", "'"); // Double quotes should be single quotes for LSL query to work.
 
 	bool match = false;
-	for (const auto &info : lsl::resolve_streams(timeout)) {
+	clock_t start = clock();
+	std::vector<lsl::stream_info> all_streams;
+
+	std::cout << "Searching for streams..." << std::endl;
+	while (!_kbhit()) // Check for keyboard hit to cancel.
+	{
+		// Check if timeout limit hit or not.
+		if (all_streams.size() > 0 || ((clock() - start) / CLOCKS_PER_SEC) >= timeout) { break; }
+		all_streams = lsl::resolve_streams(resolve_timeout);
+	}
+
+	for (const auto &info : all_streams) {
 		if (query == "*" || info.matches_query(query.toStdString().c_str())) {
 			streams.emplace_back(info);
 			match = true;
@@ -38,15 +55,18 @@ bool find_streams(QString query, double timeout, std::vector<lsl::stream_info> &
 	return match;
 }
 
-void display_stream_info(std::vector<lsl::stream_info> &streams, bool matches, QString query) {
+void display_stream_info(
+	std::vector<lsl::stream_info> &streams, bool matches, QString query, bool verbose = false) {
 	bool query_mode = !query.isEmpty();
 
 	if (matches) {
-		std::string preamble = query_mode ? "Query matched " : "Found "; 
-		std::cout << preamble << streams.size() << " stream" << (streams.size() > 1 ? "s:" : ":") << std::endl;
+		std::string preamble = query_mode ? "Query matched " : "Found ";
+		std::cout << preamble << streams.size() << " stream" << (streams.size() > 1 ? "s:" : ":")
+				  << std::endl;
 		int index = 1;
 		for (auto &stream : streams) {
 			std::cout << index << ". " << stream.name() << " @ " << stream.hostname() << std::endl;
+			if (verbose) { std::cout << stream.as_xml() << std::endl; }
 			index++;
 		}
 		std::cout << std::endl;
@@ -59,25 +79,26 @@ void display_stream_info(std::vector<lsl::stream_info> &streams, bool matches, Q
 	}
 }
 
-int execute_list_command(double timeout) {
+int execute_list_command(double timeout, double resolve_timeout, bool verbose) {
 	std::vector<lsl::stream_info> streams;
-	bool matches = find_streams("*", timeout, streams);
-	display_stream_info(streams, matches, "");
+	bool matches = find_streams("*", timeout, resolve_timeout, streams);
+	display_stream_info(streams, matches, "", verbose);
 
 	return matches ? 0 : 2;
 }
 
-int execute_find_command(QString query, double timeout) {
+int execute_find_command(QString query, double timeout, double resolve_timeout, bool verbose) {
 	std::vector<lsl::stream_info> streams;
-	bool matches = find_streams(query, timeout, streams);
-	display_stream_info(streams, matches, query);
+	bool matches = find_streams(query, timeout, resolve_timeout, streams);
+	display_stream_info(streams, matches, query, verbose);
 
 	return matches ? 0 : 2;
 }
 
-int execute_record_command(QString query, QString filename, double timeout) {
+int execute_record_command(
+	QString query, QString filename, double timeout, double resolve_timeout) {
 	std::vector<lsl::stream_info> streams;
-	bool matches = find_streams(query, timeout, streams);
+	bool matches = find_streams(query, timeout, resolve_timeout, streams);
 	display_stream_info(streams, matches, query);
 
 	// End command if no matches found.
@@ -101,7 +122,12 @@ void incorrect_usage(QCommandLineParser &parser, std::string message, bool show_
 }
 
 double parse_timeout(QString timeout_str) {
-	return timeout_str.isEmpty() ? 1 : std::stod(timeout_str.toStdString());
+	return timeout_str.isEmpty() ? TIMEOUT_DEFAULT : std::stod(timeout_str.toStdString());
+}
+
+double parse_resolve_timeout(QString resolve_timeout_str) {
+	return resolve_timeout_str.isEmpty() ? RESOLVE_TIMEOUT_DEFAULT
+										 : std::stod(resolve_timeout_str.toStdString());
 }
 
 void process_command(QCommandLineParser &parser, QCoreApplication &app, QStringList &pos_args,
@@ -138,10 +164,25 @@ int main(int argc, char **argv) {
 											"list - List all LSL streams.\n"
 											"find - Apply query to find LSL stream(s).\n");
 
-	// Timeout option (-t, --timeout).
+	// Timeout option (-t, --timeout). Default value = 5.
 	QCommandLineOption timeout_option(QStringList() << "t"
-												   << "timeout",
-		"How long (in seconds) to wait while resolving stream(s).");
+													<< "timeout",
+		"Maxmimum overall time (in seconds) to wait while searching for stream(s).", "timeout", "5");
+
+	// Resolve timeout option (-r, --resolve-timeout). Default value = 1.
+	QCommandLineOption resolve_timeout_option(QStringList() << "r"
+															<< "resolve-timeout",
+		"Time (in seconds) to wait during each LSL call to resolve stream(s).", "resolve-timeout", "1");
+
+	// Verbose data option (-d, --detailed) to show all stream XML data.
+	QCommandLineOption verbose_option(QStringList() << "x"
+													<< "xml",
+		"Show verbose stream data as XML.");
+
+	QString query_examples = "XML stream query: \n"
+							 "    Example 1: \"type='EEG'\" \n"
+							 "    Example 2 (clause): \"name='Tobii' and type='Eyetracker'\" \n"
+							 "    Example 3 (wildcard): \"contains(name, 'Player 1 EEG')\" \n";
 
 	// Call parse() to find out the command (if there is one).
 	parser.parse(QCoreApplication::arguments());
@@ -156,15 +197,15 @@ int main(int argc, char **argv) {
 		// Add timeout option.
 		parser.addOption(timeout_option);
 
+		// Add resolve timeout option.
+		parser.addOption(resolve_timeout_option);
+
 		// Describe recording command (basically for help only).
 		parser.addPositionalArgument(
 			"record", "Start an LSL recording.", "record [record_options]");
 
 		// Query option.
-		parser.addPositionalArgument("query",
-			"XML stream query: \n"
-			"    Example 1: \"type='EEG'\" \n"
-			"    Example 2: \"name='Tobii' and type='Eyetracker'\" \n");
+		parser.addPositionalArgument("query", query_examples);
 
 		// Filename option.
 		parser.addPositionalArgument("filename",
@@ -178,14 +219,21 @@ int main(int argc, char **argv) {
 		QString query = positional_args[1];
 		QString filename = positional_args[2];
 		QString timeout_str = parser.value(timeout_option);
+		QString resolve_timeout_str = parser.value(resolve_timeout_option);
 		double timeout = parse_timeout(timeout_str);
-		return execute_record_command(query, filename, timeout);
-	} 
-	else if (command == "list") {
+		double resolve_timeout = parse_resolve_timeout(resolve_timeout_str);
+		return execute_record_command(query, filename, timeout, resolve_timeout);
+	} else if (command == "list") {
 		parser.clearPositionalArguments();
 
 		// Add timeout option.
 		parser.addOption(timeout_option);
+
+		// Add resolve timeout option.
+		parser.addOption(resolve_timeout_option);
+
+		// Add verbose option.
+		parser.addOption(verbose_option);
 
 		// Describe find command (basically for help only).
 		parser.addPositionalArgument("list", "List all LSL streams.", "list [list_options]");
@@ -193,38 +241,45 @@ int main(int argc, char **argv) {
 		QStringList positional_args;
 		process_command(parser, app, positional_args, 0);
 		QString timeout_str = parser.value(timeout_option);
+		QString resolve_timeout_str = parser.value(resolve_timeout_option);
 		double timeout = parse_timeout(timeout_str);
-		return execute_list_command(timeout);
-	}
-	else if (command == "find") {
+		double resolve_timeout = parse_resolve_timeout(resolve_timeout_str);
+		bool verbose = parser.isSet(verbose_option);
+		return execute_list_command(timeout, resolve_timeout, verbose);
+	} else if (command == "find") {
 		parser.clearPositionalArguments();
 
 		// Add timeout option.
 		parser.addOption(timeout_option);
 
+		// Add resolve timeout option.
+		parser.addOption(resolve_timeout_option);
+
+		// Add verbose option.
+		parser.addOption(verbose_option);
+
 		// Describe find command (basically for help only).
-		parser.addPositionalArgument(
-			"find", "Find LSL stream(s).", "find [find_options]");
+		parser.addPositionalArgument("find", "Find LSL stream(s).", "find [find_options]");
 
 		// Query option.
-		parser.addPositionalArgument("query",
-			"XML stream query: \n"
-			"    Example 1: \"type='EEG'\" \n"
-			"    Example 2: \"name='Tobii' and type='Eyetracker'\" \n");
+		parser.addPositionalArgument("query", query_examples);
 
 		QStringList positional_args;
 		process_command(parser, app, positional_args, 1);
 		QString query = positional_args[1];
 		QString timeout_str = parser.value(timeout_option);
+		QString resolve_timeout_str = parser.value(resolve_timeout_option);
 		double timeout = parse_timeout(timeout_str);
-		return execute_find_command(query, timeout);
-	}
-	else {
+		double resolve_timeout = parse_resolve_timeout(resolve_timeout_str);
+		bool verbose = parser.isSet(verbose_option);
+		return execute_find_command(query, timeout, resolve_timeout, verbose);
+	} else {
 		parser.process(app);
 		if (parser.isSet("help")) { parser.showHelp(); }
 		incorrect_usage(parser,
-			command.isEmpty() ? "Incorrect usage, no command provided"
-							  : "Incorrect usage, unknown command provided",
+			command.isEmpty()
+				? "Incorrect usage, no command provided"
+				: ("Incorrect usage, unknown command \"" + command.toStdString() + "\" provided"),
 			true);
 	}
 #pragma endregion
