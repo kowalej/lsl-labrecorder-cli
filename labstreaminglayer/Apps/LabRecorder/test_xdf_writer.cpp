@@ -1,4 +1,4 @@
-#include "LSLStreamWriter.h"
+#include "lslstreamwriter.h"
 
 int main(int argc, char** argv) {
 	LSLStreamWriter w("test.xdf");

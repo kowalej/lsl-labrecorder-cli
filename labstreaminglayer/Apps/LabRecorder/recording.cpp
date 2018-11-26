@@ -81,10 +81,10 @@ inline void timed_join_or_detach(
 	}
 }
 
-recording::recording(const std::string &filename, file_type_t file_type,
+recording::recording(const std::string &filename, file_type_t filetype,
 	const std::vector<lsl::stream_info> &streams, const std::vector<std::string> &watchfor,
 	std::map<std::string, int> syncOptions, bool collect_offsets)
-	: file_(filename, file_type, streams), offsets_enabled_(collect_offsets), unsorted_(false),
+	: file_(filename, filetype), offsets_enabled_(collect_offsets), unsorted_(false),
 	  streamid_(0), shutdown_(false), headers_to_finish_(0), streaming_to_finish_(0),
 	  sync_options_by_stream_(std::move(syncOptions)) {
 	// create a recording thread for each stream
@@ -182,6 +182,7 @@ void recording::record_from_streaminfo(const lsl::stream_info &src, bool phase_l
 
 			// retrieve the stream header & get its XML version
 			info = in->info();
+			file_.init_stream_file(streamid, info.name()); // Ensures we have enough files for each stream (in the case of CSVs).
 			file_.write_stream_header(streamid, info.as_xml());
 			std::cout << "Received header for stream " << src.name() << "." << std::endl;
 

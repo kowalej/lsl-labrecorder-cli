@@ -1,6 +1,6 @@
+#include "LSLStreamWriter.h"
 #include "process.h"
 #include "recording.h"
-#include "LSLStreamWriter.h"
 #include <QCommandLineParser>
 #include <Windows.h>
 #include <conio.h>
@@ -10,24 +10,6 @@
 #define TIMEOUT_DEFAULT 5
 #define RESOLVE_TIMEOUT_DEFAULT 1
 
-std::string remove_chars(const std::string &source, const std::string &chars) {
-	std::string result = "";
-	for (unsigned int i = 0; i < source.length(); i++) {
-		bool foundany = false;
-		for (unsigned int j = 0; j < chars.length() && !foundany; j++) {
-			foundany = (source[i] == chars[j]);
-		}
-		if (!foundany) { result += source[i]; }
-	}
-	return result;
-}
-
-bool replace(std::string &str, const std::string &from, const std::string &to) {
-	size_t start_pos = str.find(from);
-	if (start_pos == std::string::npos) return false;
-	str.replace(start_pos, from.length(), to);
-	return true;
-}
 
 bool find_streams(
 	QString query, double timeout, double resolve_timeout, std::vector<lsl::stream_info> &streams) {
@@ -95,8 +77,8 @@ int execute_find_command(QString query, double timeout, double resolve_timeout, 
 	return matches ? 0 : 2;
 }
 
-int execute_record_command(
-	QString query, QString filename, double timeout, double resolve_timeout) {
+int execute_record_command(QString query, QString filename, file_type_t file_type, double timeout,
+	double resolve_timeout) {
 	std::vector<lsl::stream_info> streams;
 	bool matches = find_streams(query, timeout, resolve_timeout, streams);
 	display_stream_info(streams, matches, query);
@@ -104,10 +86,11 @@ int execute_record_command(
 	// End command if no matches found.
 	if (!matches) { return 2; }
 
+
 	std::vector<std::string> watchfor;
 	std::map<std::string, int> sync_options;
 	std::cout << "--- Starting the recording, press ENTER to quit... ---" << std::endl;
-	recording r(filename.toStdString(), file_type_t::csv, streams, watchfor, sync_options, true);
+	recording r(filename.toStdString(), file_type, streams, watchfor, sync_options, true);
 	std::cin.get();
 	return 0;
 }
@@ -167,12 +150,14 @@ int main(int argc, char **argv) {
 	// Timeout option (-t, --timeout). Default value = 5.
 	QCommandLineOption timeout_option(QStringList() << "t"
 													<< "timeout",
-		"Maxmimum overall time (in seconds) to wait while searching for stream(s).", "timeout", "5");
+		"Maxmimum overall time (in seconds) to wait while searching for stream(s).", "timeout",
+		"5");
 
 	// Resolve timeout option (-r, --resolve-timeout). Default value = 1.
 	QCommandLineOption resolve_timeout_option(QStringList() << "r"
 															<< "resolve-timeout",
-		"Time (in seconds) to wait during each LSL call to resolve stream(s).", "resolve-timeout", "1");
+		"Time (in seconds) to wait during each LSL call to resolve stream(s).", "resolve-timeout",
+		"1");
 
 	// Verbose data option (-d, --detailed) to show all stream XML data.
 	QCommandLineOption verbose_option(QStringList() << "x"
@@ -222,7 +207,20 @@ int main(int argc, char **argv) {
 		QString resolve_timeout_str = parser.value(resolve_timeout_option);
 		double timeout = parse_timeout(timeout_str);
 		double resolve_timeout = parse_resolve_timeout(resolve_timeout_str);
-		return execute_record_command(query, filename, timeout, resolve_timeout);
+
+		// Simple validation of filename (must be csv or xdf(z) file).
+		file_type_t filetype;
+		if (filename.endsWith(".csv")) {
+			filetype = file_type_t::csv;
+		} else if (filename.endsWith(".xdf")) {
+			filetype = file_type_t::xdf;
+		} else {
+			std::stringstream msg;
+			msg << "Badly formed filename received: " << filename.toStdString()
+				<< " filename must end in .xdf, .xdfz or .csv.";
+			incorrect_usage(parser, msg.str());
+		}
+		return execute_record_command(query, filename, filetype, timeout, resolve_timeout);
 	} else if (command == "list") {
 		parser.clearPositionalArguments();
 

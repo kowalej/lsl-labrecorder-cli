@@ -9,6 +9,7 @@
 #include <thread>
 #include <type_traits>
 #include <vector>
+#include <algorithm>
 
 #include <lsl_cpp.h>
 
@@ -42,17 +43,28 @@ enum class file_type_t : uint16_t {
 class LSLStreamWriter {
 private:
 	outfile_t xdf_file_;
-	std::map<const streamid_t *, outfile_t> data_files_ = std::map<const streamid_t *, outfile_t>();
-	std::map<const streamid_t *, outfile_t> meta_files_ = std::map<const streamid_t *, outfile_t>();
+	bool xdf_created_ = false;
+	std::map<streamid_t, outfile_t> data_files_;
+	std::map<streamid_t, outfile_t> meta_files_;
 
+	std::string filename_;
 	file_type_t filetype_;
 
-	outfile_t *_get_data_file(const streamid_t *streamid_p = nullptr);
-
-	outfile_t *_get_meta_file(const streamid_t *streamid_p);
+	outfile_t *_get_file(const streamid_t *streamid_p, chunk_tag_t tag) {
+		if (filetype_ == file_type_t::xdf) {
+			return &xdf_file_;
+		} else {
+			if (tag == chunk_tag_t::samples) {
+				return &data_files_.at(*streamid_p);
+			} else {
+				return &meta_files_.at(*streamid_p);
+			}
+		}
+	}
 
 	void _write_chunk_header(
 		chunk_tag_t tag, std::size_t length, const streamid_t *streamid_p = nullptr);
+
 	std::mutex write_mut;
 
 	// write a generic chunk
@@ -64,8 +76,7 @@ public:
 	 * @brief LSLStreamWriter Construct a LSLStreamWriter object
 	 * @param filename  Filename to write to
 	 */
-	LSLStreamWriter(const std::string &filename, file_type_t filetype_ = file_type_t::xdf,
-		const std::vector<lsl::stream_info> &streams = {});
+	LSLStreamWriter(const std::string &filename, file_type_t filetype_ = file_type_t::xdf);
 
 	template <typename T>
 	void write_data_chunk(streamid_t streamid, const std::vector<double> &timestamps,
@@ -79,6 +90,15 @@ public:
 	template <typename T>
 	void write_data_chunk_nested(streamid_t streamid, const std::vector<double> &timestamps,
 		const std::vector<std::vector<T>> &chunk);
+
+	/**
+	 * @brief init_stream Ensures a file is available for the referenced stream.
+	 * For XDF recordings, this can be called multiple times but only one file is created.
+	 * For CSV recordings, this will create a meta file and csv data file for the given stream.
+	 * @param streamid Numeric stream identifier
+	 * @param content XML-formatted stream header
+	 */
+	void init_stream_file(streamid_t streamid, std::string stream_name = "");
 
 	/**
 	 * @brief write_stream_header Write the stream header, see also
@@ -106,13 +126,13 @@ public:
 };
 
 inline void write_ts(std::ostream &out, double ts) {
-	// write timestamp
+	// Write timestamp.
 	if (ts == 0)
 		out.put(0);
 	else {
-		// [TimeStampBytes]
+		// [TimeStampBytes].
 		out.put(8);
-		// [TimeStamp]
+		// [TimeStamp].
 		write_little_endian(out, ts);
 	}
 }
@@ -129,17 +149,17 @@ void LSLStreamWriter::write_data_chunk(streamid_t streamid, const std::vector<do
 	if (timestamps.size() != n_samples)
 		throw std::runtime_error("timestamp / sample count mismatch");
 
-	// generate [Samples] chunk contents...
+	// Generate [Samples] chunk contents...
 
 	std::ostringstream out;
-	write_fixlen_int(out, 0x0FFFFFFF); // Placeholder length, will be replaced later
+	write_fixlen_int(out, 0x0FFFFFFF); // Placeholder length, will be replaced later.
 	for (double ts : timestamps) {
 		write_ts(out, ts);
-		// write sample, get the current position in the chunk array back
+		// Write sample, get the current position in the chunk array back.
 		chunk = write_sample_values(out, chunk, n_channels);
 	}
 	std::string outstr(out.str());
-	// Replace length placeholder
+	// Replace length placeholder.
 	auto s = static_cast<uint32_t>(n_samples);
 	std::copy(reinterpret_cast<char *>(&s), reinterpret_cast<char *>(&s + 1), outstr.begin() + 1);
 
@@ -156,20 +176,20 @@ void LSLStreamWriter::write_data_chunk_nested(streamid_t streamid,
 		throw std::runtime_error("timestamp / sample count mismatch");
 	auto n_channels = chunk[0].size();
 
-	// generate [Samples] chunk contents...
+	// Generate [Samples] chunk contents...
 
 	std::ostringstream out;
-	write_fixlen_int(out, 0x0FFFFFFF); // Placeholder length, will be replaced later
+	write_fixlen_int(out, 0x0FFFFFFF); // Placeholder length, will be replaced later.
 	auto sample_it = chunk.cbegin();
 	for (double ts : timestamps) {
 		assert(n_channels == sample_it->size());
 		write_ts(out, ts);
-		// write sample, get the current position in the chunk array back
+		// Write sample, get the current position in the chunk array back.
 		write_sample_values(out, sample_it->data(), n_channels);
 		sample_it++;
 	}
 	std::string outstr(out.str());
-	// Replace length placeholder
+	// Replace length placeholder.
 	auto s = static_cast<uint32_t>(n_samples);
 	std::copy(reinterpret_cast<char *>(&s), reinterpret_cast<char *>(&s + 1), outstr.begin() + 1);
 	std::lock_guard<std::mutex> lock(write_mut);
