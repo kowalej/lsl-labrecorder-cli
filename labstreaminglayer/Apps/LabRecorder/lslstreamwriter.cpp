@@ -56,7 +56,7 @@ void LSLStreamWriter::_write_chunk_header(
 }
 
 void LSLStreamWriter::init_stream_file(streamid_t streamid, std::string stream_name) {
-	std::lock_guard<std::mutex> lock(write_mut);
+	std::lock_guard<std::mutex> lock(*_get_write_mutex(&streamid));
 
 	// XDF special handling.
 	if (filetype_ == file_type_t::xdf && !xdf_created_) {
@@ -76,32 +76,34 @@ void LSLStreamWriter::init_stream_file(streamid_t streamid, std::string stream_n
 			chunk_tag_t::fileheader, "<?xml version=\"1.0\"?><info><version>1.0</version></info>");
 	}
 
+	// CSV setup.
 	else if (filetype_ == file_type_t::csv) {
 		auto stream_name_safe = replace_all(stream_name, ":", ".");
 		std::string csv_filename =
 			replace_all(filename_, ".csv", " - " + stream_name_safe + ".data.csv");
 		std::string meta_filename =
 			replace_all(filename_, ".csv", " - " + stream_name_safe + ".meta.xml");
-		data_files_[streamid] = outfile_t(csv_filename, std::ios::binary | std::ios::trunc);
-		meta_files_[streamid] = outfile_t(meta_filename, std::ios::binary | std::ios::trunc);
+		data_files_[streamid] = outfile_t(csv_filename, std::ios::binary | std::ios::trunc); // Create a data file for each stream.
+		meta_files_[streamid] = outfile_t(meta_filename, std::ios::binary | std::ios::trunc); // Create a meta data file for each stream.
+		file_mutex_.emplace(streamid, std::make_unique<std::mutex>()); // Create a write lock for each stream.
 		_write_chunk(chunk_tag_t::fileheader,
 			"<?xml version=\"1.0\"?><info><version>1.0</version></info>\n", &streamid);
 	}
 }
 
 void LSLStreamWriter::write_stream_header(streamid_t streamid, const std::string &content) {
-	std::lock_guard<std::mutex> lock(write_mut);
+	std::lock_guard<std::mutex> lock(*_get_write_mutex(&streamid));
 	_write_chunk(chunk_tag_t::streamheader, content, &streamid);
 }
 
 void LSLStreamWriter::write_stream_footer(streamid_t streamid, const std::string &content) {
-	std::lock_guard<std::mutex> lock(write_mut);
+	std::lock_guard<std::mutex> lock(*_get_write_mutex(&streamid));
 	_write_chunk(chunk_tag_t::streamfooter, content, &streamid);
 }
 
 void LSLStreamWriter::write_stream_offset(streamid_t streamid, double now, double offset) {
 	if (filetype_ == file_type_t::xdf) {
-		std::lock_guard<std::mutex> lock(write_mut);
+		std::lock_guard<std::mutex> lock(*_get_write_mutex(&streamid));
 		const auto len = sizeof(now) + sizeof(offset);
 		outfile_t *file = _get_file(&streamid, chunk_tag_t::clockoffset);
 
@@ -116,9 +118,9 @@ void LSLStreamWriter::write_stream_offset(streamid_t streamid, double now, doubl
 }
 
 void LSLStreamWriter::write_boundary_chunk() {
-	// Boundary chunk only works for XDF.
+	// Boundary chunk only required for XDF.
 	if (filetype_ == file_type_t::xdf) {
-		std::lock_guard<std::mutex> lock(write_mut);
+		std::lock_guard<std::mutex> lock(*_get_write_mutex(nullptr));
 		// The signature of the boundary chunk (next chunk begins right after this).
 		const uint8_t boundary_uuid[] = {0x43, 0xA5, 0x46, 0xDC, 0xCB, 0xF5, 0x41, 0x0F, 0xB3, 0x0E,
 			0xD5, 0x46, 0x73, 0x83, 0xCB, 0xE4};

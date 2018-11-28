@@ -56,11 +56,11 @@ lsl_xdf_path        = sys.argv[1]
 #%%
 
 if not lsl_xdf_path:
-    print 'need to specify path to xdf file or folder!'
+    #print 'need to specify path to xdf file or folder!'
     exit
 
 if not os.path.exists(lsl_xdf_path):
-    print '{} not found!'.format(lsl_xdf_path)
+    #print '{} not found!'.format(lsl_xdf_path)
     exit
 
 results_folder = lsl_xdf_path.replace('.xdf','')
@@ -69,44 +69,63 @@ if not os.path.exists(results_folder):
     
 #%%
 
-print
-print 'loading {}'.format(lsl_xdf_path)
+def replace_invalid_chars(str_in):
+    '''
+    Based on invalid windows file path chars from:
+    https://docs.microsoft.com/en-us/windows/desktop/fileio/naming-a-file.
+    Also replaces spaces with underscores
+    '''
+#    #print str_in
+    invalid_chars = ['>', '<', ':', '"', '/', '\\', '|', '?', '*', ' ']
+    for c in invalid_chars:
+        str_in = str_in.replace(c,'_')
+#        #print c, str_in
+#    #print str_in
+    return str_in
+    
+#%%
+
+#print
+#print 'loading {}'.format(lsl_xdf_path)
 lsl_data            = load_xdf(lsl_xdf_path,verbose=False,synchronize_clocks=False)
 streams, fileheader = lsl_data
 
 nstreams = len(streams) 
 nstream_string = '{} {} {}'.format('is' if nstreams==1 else 'are',nstreams,'stream' if nstreams==1 else 'streams')
-print 'there {} in this recording'.format(nstream_string)
+#print 'there {} in this recording'.format(nstream_string)
 
 for stream in streams:
     
-    print('\n\n'+'-' * 80)
+    #print('\n\n'+'-' * 80)
     stream_name=stream['info']['name'][0]
-    print('stream',stream_name)
-    print('-'*80)
+    #print('stream',stream_name)
+    #print('-'*80)
     
     desc = stream['info']['desc']
-    print('\ndesc:')
-    print desc
+    #print('\ndesc:')
+    #print desc
     
     stream_data       = stream['time_series']
     stream_data = np.array(stream_data)
     stream_timestamps = stream['time_stamps']
-    print('data array shape: {}'.format(stream_data.shape))
+    #print('data array shape: {}'.format(stream_data.shape))
 
     channel_names_list = desc[0]['channels'][0]['channel']
     
-    print('\ncolumns:')
+    #print('\ncolumns:')
     stream_colnames = []
     for cn in channel_names_list:
         name = cn['label'][0]
         stream_colnames.append(name)
-        print '  {}'.format(name)
+        #print '  {}'.format(name)
         
     df_stream = pd.DataFrame(data=stream_data,columns=stream_colnames)
     df_stream['lsl_time_stamp'] = stream_timestamps
     
     if write_csvs:
         stream_csv_name = '{}.csv'.format(stream_name.replace(' ','_'))
+#        stream_csv_name = '{}'.format(stream_csv_name.replace(':','-'))
+        stream_csv_name = replace_invalid_chars(stream_csv_name)
         stream_csv_path = os.path.join(results_folder,stream_csv_name)
+        #print '\ncsv path: {}'.format(stream_csv_path)
         df_stream.to_csv(stream_csv_path)

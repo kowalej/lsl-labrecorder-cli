@@ -2,6 +2,7 @@
 
 #include "conversions.h"
 
+#include <algorithm>
 #include <cassert>
 #include <map>
 #include <mutex>
@@ -9,7 +10,6 @@
 #include <thread>
 #include <type_traits>
 #include <vector>
-#include <algorithm>
 
 #include <lsl_cpp.h>
 
@@ -43,9 +43,11 @@ enum class file_type_t : uint16_t {
 class LSLStreamWriter {
 private:
 	outfile_t xdf_file_;
+	std::mutex global_file_mutex_;
 	bool xdf_created_ = false;
 	std::map<streamid_t, outfile_t> data_files_;
 	std::map<streamid_t, outfile_t> meta_files_;
+	std::map<streamid_t, std::unique_ptr<std::mutex>> file_mutex_;
 
 	std::string filename_;
 	file_type_t filetype_;
@@ -62,10 +64,26 @@ private:
 		}
 	}
 
+	std::mutex *_get_write_mutex(const streamid_t *streamid_p) {
+		if (filetype_ == file_type_t::xdf) {
+			return &global_file_mutex_;
+		} else {
+			std::mutex *inner_mutex;
+			{
+				std::lock_guard<std::mutex> g_lk(global_file_mutex_);
+
+				auto it = file_mutex_.find(*streamid_p);
+				if (it == file_mutex_.end()) {
+					it = file_mutex_.emplace(*streamid_p, std::make_unique<std::mutex>()).first;
+				}
+				inner_mutex = it->second.get();
+				return inner_mutex;
+			}
+		}
+	}
+
 	void _write_chunk_header(
 		chunk_tag_t tag, std::size_t length, const streamid_t *streamid_p = nullptr);
-
-	std::mutex write_mut;
 
 	// write a generic chunk
 	void _write_chunk(
@@ -80,12 +98,12 @@ public:
 
 	template <typename T>
 	void write_data_chunk(streamid_t streamid, const std::vector<double> &timestamps,
-		const T *chunk, uint32_t n_samples, uint32_t n_channels);
+		const std::vector<T> &chunk, uint32_t n_samples, uint32_t n_channels);
 	template <typename T>
 	void write_data_chunk(streamid_t streamid, const std::vector<double> &timestamps,
 		const std::vector<T> &chunk, uint32_t n_channels) {
 		assert(timestamps.size() * n_channels == chunk.size());
-		write_data_chunk(streamid, timestamps, chunk.data(), timestamps.size(), n_channels);
+		write_data_chunk(streamid, timestamps, chunk, timestamps.size(), n_channels);
 	}
 	template <typename T>
 	void write_data_chunk_nested(streamid_t streamid, const std::vector<double> &timestamps,
@@ -139,12 +157,13 @@ inline void write_ts(std::ostream &out, double ts) {
 
 template <typename T>
 void LSLStreamWriter::write_data_chunk(streamid_t streamid, const std::vector<double> &timestamps,
-	const T *chunk, uint32_t n_samples, uint32_t n_channels) {
+	const std::vector<T> &chunk, uint32_t n_samples, uint32_t n_channels) {
+
 	/**
-	  Samples data chunk: [Tag 3] [VLA ChunkLen] [StreamID] [VLA NumSamples]
-	  [NumSamples x [VLA TimestampLen] [TimeStampLen]
-	  [NumSamples x NumChannels Sample]
-	  */
+		Samples data chunk: [Tag 3] [VLA ChunkLen] [StreamID] [VLA NumSamples]
+		[NumSamples x [VLA TimestampLen] [TimeStampLen]
+		[NumSamples x NumChannels Sample]
+	**/
 	if (n_samples == 0) return;
 	if (timestamps.size() != n_samples)
 		throw std::runtime_error("timestamp / sample count mismatch");
@@ -152,18 +171,35 @@ void LSLStreamWriter::write_data_chunk(streamid_t streamid, const std::vector<do
 	// Generate [Samples] chunk contents...
 
 	std::ostringstream out;
-	write_fixlen_int(out, 0x0FFFFFFF); // Placeholder length, will be replaced later.
-	for (double ts : timestamps) {
-		write_ts(out, ts);
-		// Write sample, get the current position in the chunk array back.
-		chunk = write_sample_values(out, chunk, n_channels);
-	}
-	std::string outstr(out.str());
-	// Replace length placeholder.
-	auto s = static_cast<uint32_t>(n_samples);
-	std::copy(reinterpret_cast<char *>(&s), reinterpret_cast<char *>(&s + 1), outstr.begin() + 1);
+	std::string outstr;
 
-	std::lock_guard<std::mutex> lock(write_mut);
+	// XDF formatter.
+	if (filetype_ == file_type_t::xdf) {
+		auto raw_data = chunk.data();
+
+		write_fixlen_int(out, 0x0FFFFFFF); // Placeholder length, will be replaced later.
+		for (double ts : timestamps) {
+			write_ts(out, ts);
+			// Write sample, get the current position in the chunk array back.
+			raw_data = write_sample_values(out, raw_data, n_channels);
+		}
+		outstr = std::string(out.str());
+		// Replace length placeholder.
+		auto s = static_cast<uint32_t>(n_samples);
+		std::copy(
+			reinterpret_cast<char *>(&s), reinterpret_cast<char *>(&s + 1), outstr.begin() + 1);
+	}
+
+	// CSV formatter.
+	else if (filetype_ == file_type_t::csv) {
+		for (double ts : timestamps) {
+			// Write sample, get the current position in the chunk array back.
+			// raw_data = write_sample_values(out, raw_data, n_channels);
+		}
+		outstr = std::string("hello");
+	}
+
+	std::lock_guard<std::mutex> lock(*_get_write_mutex(&streamid));
 	_write_chunk(chunk_tag_t::samples, outstr, &streamid);
 }
 
@@ -179,19 +215,31 @@ void LSLStreamWriter::write_data_chunk_nested(streamid_t streamid,
 	// Generate [Samples] chunk contents...
 
 	std::ostringstream out;
-	write_fixlen_int(out, 0x0FFFFFFF); // Placeholder length, will be replaced later.
-	auto sample_it = chunk.cbegin();
-	for (double ts : timestamps) {
-		assert(n_channels == sample_it->size());
-		write_ts(out, ts);
-		// Write sample, get the current position in the chunk array back.
-		write_sample_values(out, sample_it->data(), n_channels);
-		sample_it++;
+	std::string outstr;
+
+	// XDF formatter.
+	if (filetype_ == file_type_t::xdf) {
+		write_fixlen_int(out, 0x0FFFFFFF); // Placeholder length, will be replaced later.
+		auto sample_it = chunk.cbegin();
+		for (double ts : timestamps) {
+			assert(n_channels == sample_it->size());
+			write_ts(out, ts);
+			// Write sample, get the current position in the chunk array back.
+			write_sample_values(out, sample_it->data(), n_channels);
+			sample_it++;
+		}
+		outstr(out.str());
+		// Replace length placeholder.
+		auto s = static_cast<uint32_t>(n_samples);
+		std::copy(
+			reinterpret_cast<char *>(&s), reinterpret_cast<char *>(&s + 1), outstr.begin() + 1);
 	}
-	std::string outstr(out.str());
-	// Replace length placeholder.
-	auto s = static_cast<uint32_t>(n_samples);
-	std::copy(reinterpret_cast<char *>(&s), reinterpret_cast<char *>(&s + 1), outstr.begin() + 1);
-	std::lock_guard<std::mutex> lock(write_mut);
+
+	// CSV formatter.
+	else if (filetype_ == file_type_t::csv) {
+		outstr(out.str());
+	}
+
+	std::lock_guard<std::mutex> lock(*_get_write_mutex(&streamid));
 	_write_chunk(chunk_tag_t::samples, outstr, &streamid);
 }
