@@ -44,7 +44,6 @@ class LSLStreamWriter {
 private:
 	outfile_t xdf_file_;
 	std::mutex global_file_mutex_;
-	bool xdf_created_ = false;
 	std::map<streamid_t, outfile_t> data_files_;
 	std::map<streamid_t, outfile_t> meta_files_;
 	std::map<streamid_t, std::unique_ptr<std::mutex>> file_mutex_;
