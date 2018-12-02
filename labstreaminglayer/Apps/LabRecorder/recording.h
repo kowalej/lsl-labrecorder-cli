@@ -31,6 +31,13 @@ const double max_open_wait = 5;
 // maximum time that we wait to join a thread, in seconds
 const std::chrono::seconds max_join_wait(5);
 
+const std::string recording_time_channel_info = 
+	"<channel>"
+	"\n\t<label>Recording Timestamp (Unix Epoch)</label>"
+	"\n\t<unit>seconds</unit>"
+	"\n\t<type>Recorder</type>"
+	"</channel>";
+
 using streamid_t = uint32_t;
 
 // pointer to a thread
@@ -64,18 +71,27 @@ public:
 			  const std::vector<lsl::stream_info> &streams,
 			  const std::vector<std::string> &watchfor,
 			  std::map<std::string, int> syncOptions,
-			  bool collect_offsets=true);
+			  bool collect_offsets = true,
+			  bool recording_timestamps = true);
 
 	/** Destructor.
 	* Stops the recording and closes the file.
 	*/
 	~recording();
 
+	double epoch_time_now() {
+		return std::chrono::nanoseconds(
+				   std::chrono::high_resolution_clock::now().time_since_epoch())
+				   .count() /
+			   1000000000.0;
+	}
+
 private:
 	// the file stream
 	LSLStreamWriter file_;	// the file output stream
 	// static information
 	bool offsets_enabled_;					// whether to collect time offset information alongside with the stream contents
+	bool recording_timestamps_enabled_;		// whether to add a timestamp to each sample which indicates when the sample was recorded
 	bool unsorted_;							// whether this file may contain unsorted chunks (e.g., of late streams)
 
 	// streamid allocation

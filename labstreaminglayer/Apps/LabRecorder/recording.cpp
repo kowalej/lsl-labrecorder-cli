@@ -1,4 +1,5 @@
 #include "recording.h"
+#include <optional>
 //#include "conversions.h"
 
 #include <set>
@@ -83,10 +84,10 @@ inline void timed_join_or_detach(
 
 recording::recording(const std::string &filename, file_type_t filetype,
 	const std::vector<lsl::stream_info> &streams, const std::vector<std::string> &watchfor,
-	std::map<std::string, int> syncOptions, bool collect_offsets)
-	: file_(filename, filetype), offsets_enabled_(collect_offsets), unsorted_(false),
-	  streamid_(0), shutdown_(false), headers_to_finish_(0), streaming_to_finish_(0),
-	  sync_options_by_stream_(std::move(syncOptions)) {
+	std::map<std::string, int> syncOptions, bool collect_offsets, bool recording_timestamps)
+	: file_(filename, filetype), offsets_enabled_(collect_offsets), recording_timestamps_enabled_(recording_timestamps), 
+		unsorted_(false), streamid_(0), shutdown_(false), headers_to_finish_(0), streaming_to_finish_(0),
+		sync_options_by_stream_(std::move(syncOptions)) {
 	// create a recording thread for each stream
 	for (const auto &stream : streams)
 		stream_threads_.emplace_back(
@@ -372,11 +373,14 @@ void recording::typed_transfer_loop(streamid_t streamid, double srate, const inl
 		// temporary data
 		std::vector<T> chunk;
 		std::vector<double> timestamps;
-
+		double recording_timestamp = -1;
+		
 		// Pull the first sample
 		first_timestamp = last_timestamp = in->pull_sample(chunk);
 		timestamps.push_back(first_timestamp);
-		file_.write_data_chunk(streamid, timestamps, chunk, in->get_channel_count());
+		if (recording_timestamps_enabled_) { recording_timestamp = epoch_time_now(); }
+		file_.write_data_chunk(streamid, timestamps, chunk,
+			in->get_channel_count(), recording_timestamp);
 
 		auto next_pull = Clock::now();
 		while (!shutdown_) {
@@ -391,8 +395,10 @@ void recording::typed_transfer_loop(streamid_t streamid, double srate, const inl
 				} else
 					last_timestamp = ts;
 			}
+			if (recording_timestamps_enabled_) { recording_timestamp = epoch_time_now(); }
 			// write the actual chunk
-			file_.write_data_chunk(streamid, timestamps, chunk, in->get_channel_count());
+			file_.write_data_chunk(
+				streamid, timestamps, chunk, in->get_channel_count(), recording_timestamp);
 			sample_count += timestamps.size();
 
 			next_pull += chunk_interval;

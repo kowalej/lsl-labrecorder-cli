@@ -78,7 +78,7 @@ int execute_find_command(QString query, double timeout, double resolve_timeout, 
 }
 
 int execute_record_command(QString query, QString filename, file_type_t file_type, double timeout,
-	double resolve_timeout) {
+	double resolve_timeout, bool collect_offsets, bool recording_timestamps) {
 	std::vector<lsl::stream_info> streams;
 	bool matches = find_streams(query, timeout, resolve_timeout, streams);
 	display_stream_info(streams, matches, query);
@@ -90,7 +90,14 @@ int execute_record_command(QString query, QString filename, file_type_t file_typ
 	std::vector<std::string> watchfor;
 	std::map<std::string, int> sync_options;
 	std::cout << "--- Starting the recording, press ENTER to quit... ---" << std::endl;
-	recording r(filename.toStdString(), file_type, streams, watchfor, sync_options, true);
+	recording r(
+		filename.toStdString(), 
+		file_type, 
+		streams, 
+		watchfor, 
+		sync_options, 
+		collect_offsets,
+		recording_timestamps);
 	std::cin.get();
 	return 0;
 }
@@ -164,6 +171,16 @@ int main(int argc, char **argv) {
 													<< "xml",
 		"Show verbose stream data as XML.");
 
+	// Collect offsets option (-o, --offsets).
+	QCommandLineOption collect_offsets_option(QStringList() << "o"
+															<< "offsets",
+		"Set this flag to collect offsets in the stream.", "offsets");
+
+	// Recording timestamps option (-d, --recording-timestamps).
+	QCommandLineOption recording_timestamps_option(QStringList() << "d"
+															<< "recording-timestamps",
+		"Add (as an LSL channel) a timestamp indicating when the sample was recorded.", "recording-timestamps");
+
 	QString query_examples = "XML stream query: \n"
 							 "    Example 1: \"type='EEG'\" \n"
 							 "    Example 2 (clause): \"name='Tobii' and type='Eyetracker'\" \n"
@@ -184,6 +201,12 @@ int main(int argc, char **argv) {
 
 		// Add resolve timeout option.
 		parser.addOption(resolve_timeout_option);
+
+		// Add collect offsets option.
+		parser.addOption(collect_offsets_option);
+
+		// Add enable recording timestamps option.
+		parser.addOption(recording_timestamps_option);
 
 		// Describe recording command (basically for help only).
 		parser.addPositionalArgument(
@@ -207,6 +230,8 @@ int main(int argc, char **argv) {
 		QString resolve_timeout_str = parser.value(resolve_timeout_option);
 		double timeout = parse_timeout(timeout_str);
 		double resolve_timeout = parse_resolve_timeout(resolve_timeout_str);
+		bool collect_offsets = parser.isSet(collect_offsets_option);
+		bool recording_timestamps = parser.isSet(recording_timestamps_option);
 
 		// Simple validation of filename (must be csv or xdf(z) file).
 		file_type_t filetype;
@@ -220,7 +245,8 @@ int main(int argc, char **argv) {
 				<< " filename must end in .xdf, .xdfz or .csv.";
 			incorrect_usage(parser, msg.str());
 		}
-		return execute_record_command(query, filename, filetype, timeout, resolve_timeout);
+		return execute_record_command(query, filename, filetype, timeout, resolve_timeout,
+			collect_offsets, recording_timestamps);
 	} else if (command == "list") {
 		parser.clearPositionalArguments();
 

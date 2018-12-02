@@ -46,7 +46,7 @@ private:
 	std::mutex global_file_mutex_;
 	std::map<streamid_t, outfile_t> data_files_;
 	std::map<streamid_t, outfile_t> meta_files_;
-	std::map<streamid_t, std::unique_ptr<std::mutex>> file_mutex_;
+	std::map<streamid_t, std::mutex> file_mutex_;
 
 	std::string filename_;
 	file_type_t filetype_;
@@ -67,17 +67,7 @@ private:
 		if (filetype_ == file_type_t::xdf) {
 			return &global_file_mutex_;
 		} else {
-			std::mutex *inner_mutex;
-			{
-				std::lock_guard<std::mutex> g_lk(global_file_mutex_);
-
-				auto it = file_mutex_.find(*streamid_p);
-				if (it == file_mutex_.end()) {
-					it = file_mutex_.emplace(*streamid_p, std::make_unique<std::mutex>()).first;
-				}
-				inner_mutex = it->second.get();
-				return inner_mutex;
-			}
+			return &file_mutex_.at(*streamid_p);
 		}
 	}
 
@@ -97,12 +87,15 @@ public:
 
 	template <typename T>
 	void write_data_chunk(streamid_t streamid, const std::vector<double> &timestamps,
-		const std::vector<T> &chunk, uint32_t n_samples, uint32_t n_channels);
+		const std::vector<T> &chunk, uint32_t n_samples, uint32_t n_channels,
+		double recording_timestamp = -1);
 	template <typename T>
 	void write_data_chunk(streamid_t streamid, const std::vector<double> &timestamps,
-		const std::vector<T> &chunk, uint32_t n_channels) {
+		const std::vector<T> &chunk, uint32_t n_channels,
+		double recording_timestamp = -1) {
 		assert(timestamps.size() * n_channels == chunk.size());
-		write_data_chunk(streamid, timestamps, chunk, timestamps.size(), n_channels);
+		write_data_chunk(
+			streamid, timestamps, chunk, timestamps.size(), n_channels, recording_timestamp);
 	}
 	template <typename T>
 	void write_data_chunk_nested(streamid_t streamid, const std::vector<double> &timestamps,
@@ -156,7 +149,7 @@ inline void write_ts(std::ostream &out, double ts) {
 
 template <typename T>
 void LSLStreamWriter::write_data_chunk(streamid_t streamid, const std::vector<double> &timestamps,
-	const std::vector<T> &chunk, uint32_t n_samples, uint32_t n_channels) {
+	const std::vector<T> &chunk, uint32_t n_samples, uint32_t n_channels, double recording_timestamp) {
 
 	/**
 		Samples data chunk: [Tag 3] [VLA ChunkLen] [StreamID] [VLA NumSamples]
@@ -168,19 +161,20 @@ void LSLStreamWriter::write_data_chunk(streamid_t streamid, const std::vector<do
 		throw std::runtime_error("timestamp / sample count mismatch");
 
 	// Generate [Samples] chunk contents...
-
 	std::ostringstream out;
 	std::string outstr;
 
 	// XDF formatter.
 	if (filetype_ == file_type_t::xdf) {
 		auto raw_data = chunk.data();
-
 		write_fixlen_int(out, 0x0FFFFFFF); // Placeholder length, will be replaced later.
 		for (double ts : timestamps) {
 			write_ts(out, ts);
 			// Write sample, get the current position in the chunk array back.
 			raw_data = write_sample_values(out, raw_data, n_channels);
+			if (!recording_timestamp != -1) { 
+				write_ts(out, recording_timestamp);
+			}
 		}
 		outstr = std::string(out.str());
 		// Replace length placeholder.
@@ -225,6 +219,7 @@ void LSLStreamWriter::write_data_chunk_nested(streamid_t streamid,
 			write_ts(out, ts);
 			// Write sample, get the current position in the chunk array back.
 			write_sample_values(out, sample_it->data(), n_channels);
+			if (record_timestamp != -1) { write_ts(out, record_timestamp); }
 			sample_it++;
 		}
 		outstr(out.str());

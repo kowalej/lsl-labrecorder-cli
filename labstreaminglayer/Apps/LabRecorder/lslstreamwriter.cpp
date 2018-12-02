@@ -56,7 +56,7 @@ void LSLStreamWriter::_write_chunk_header(
 	chunk_tag_t tag, std::size_t len, const streamid_t *streamid_p) {
 	outfile_t *file = _get_file(streamid_p, tag);
 
-len += sizeof(chunk_tag_t);
+	len += sizeof(chunk_tag_t);
 	if (streamid_p) len += sizeof(streamid_t);
 
 	// Only write [Length] for XDF.
@@ -86,9 +86,12 @@ void LSLStreamWriter::init_stream_file(streamid_t streamid, std::string stream_n
 			replace_all(filename_, ".csv", " - " + stream_name_safe + ".data.csv");
 		std::string meta_filename =
 			replace_all(filename_, ".csv", " - " + stream_name_safe + ".meta.xml");
-		data_files_[streamid] = outfile_t(csv_filename, std::ios::binary | std::ios::trunc); // Create a data file for each stream.
-		meta_files_[streamid] = outfile_t(meta_filename, std::ios::binary | std::ios::trunc); // Create a meta data file for each stream.
-		file_mutex_.emplace(streamid, std::make_unique<std::mutex>()); // Create a write lock for each stream.
+		data_files_[streamid] = outfile_t(csv_filename,
+			std::ios::binary | std::ios::trunc); // Create a data file for each stream.
+		meta_files_[streamid] = outfile_t(meta_filename,
+			std::ios::binary | std::ios::trunc); // Create a meta data file for each stream.
+		file_mutex_.emplace(std::piecewise_construct, std::make_tuple(streamid), 
+			std::make_tuple()); // Create a write lock for each stream.
 		_write_chunk(chunk_tag_t::fileheader,
 			"<?xml version=\"1.0\"?><info><version>1.0</version></info>\n", &streamid);
 	}
@@ -112,7 +115,7 @@ void LSLStreamWriter::write_stream_offset(streamid_t streamid, double now, doubl
 
 		// Write the chunk header for XDF format only.
 		_write_chunk_header(chunk_tag_t::clockoffset, len, &streamid);
-	
+
 		// [CollectionTime].
 		write_little_endian(*file, now - offset);
 		// [OffsetValue].
@@ -128,6 +131,7 @@ void LSLStreamWriter::write_boundary_chunk() {
 		const uint8_t boundary_uuid[] = {0x43, 0xA5, 0x46, 0xDC, 0xCB, 0xF5, 0x41, 0x0F, 0xB3, 0x0E,
 			0xD5, 0x46, 0x73, 0x83, 0xCB, 0xE4};
 		_write_chunk_header(chunk_tag_t::boundary, sizeof(boundary_uuid));
-		write_sample_values(*_get_file(nullptr, chunk_tag_t::boundary), boundary_uuid, sizeof(boundary_uuid));
+		write_sample_values(
+			*_get_file(nullptr, chunk_tag_t::boundary), boundary_uuid, sizeof(boundary_uuid));
 	}
 }
