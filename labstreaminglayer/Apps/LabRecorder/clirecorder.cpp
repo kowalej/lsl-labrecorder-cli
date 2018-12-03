@@ -148,6 +148,8 @@ int main(int argc, char **argv) {
 	parser.setApplicationDescription("\nRecord and discover LSL streams.");
 	parser.addHelpOption();
 	parser.addVersionOption();
+	parser.setOptionsAfterPositionalArgumentsMode(
+		QCommandLineParser::OptionsAfterPositionalArgumentsMode::ParseAsOptions);
 
 	parser.addPositionalArgument("command", "The command to execute. See commands below:\n"
 											"record - Start an LSL recording.\n"
@@ -160,10 +162,10 @@ int main(int argc, char **argv) {
 		"Maxmimum overall time (in seconds) to wait while searching for stream(s).", "timeout",
 		"5");
 
-	// Resolve timeout option (-r, --resolve-timeout). Default value = 1.
-	QCommandLineOption resolve_timeout_option(QStringList() << "r"
-															<< "resolve-timeout",
-		"Time (in seconds) to wait during each LSL call to resolve stream(s).", "resolve-timeout",
+	// Resolve timeout option (-l, --lsl-resolve-timeout). Default value = 1.
+	QCommandLineOption resolve_timeout_option(QStringList() << "l"
+															<< "lsl-resolve-timeout",
+		"Time (in seconds) to wait during each LSL call to resolve stream(s).", "lsl-resolve-timeout",
 		"1");
 
 	// Verbose data option (-d, --detailed) to show all stream XML data.
@@ -174,12 +176,12 @@ int main(int argc, char **argv) {
 	// Collect offsets option (-o, --offsets).
 	QCommandLineOption collect_offsets_option(QStringList() << "o"
 															<< "offsets",
-		"Set this flag to collect offsets in the stream.", "offsets");
+		"Set this flag to collect offsets in the stream.");
 
-	// Recording timestamps option (-d, --recording-timestamps).
-	QCommandLineOption recording_timestamps_option(QStringList() << "d"
+	// Recording timestamps option (-r, --recording-timestamps).
+	QCommandLineOption recording_timestamps_option(QStringList() << "r"
 															<< "recording-timestamps",
-		"Add (as an LSL channel) a timestamp indicating when the sample was recorded.", "recording-timestamps");
+		"Add (as an LSL channel) a timestamp indicating when the sample was recorded.");
 
 	QString query_examples = "XML stream query: \n"
 							 "    Example 1: \"type='EEG'\" \n"

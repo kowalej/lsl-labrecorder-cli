@@ -31,12 +31,42 @@ const double max_open_wait = 5;
 // maximum time that we wait to join a thread, in seconds
 const std::chrono::seconds max_join_wait(5);
 
-const std::string recording_time_channel_info = 
-	"<channel>"
-	"\n\t<label>Recording Timestamp (Unix Epoch)</label>"
-	"\n\t<unit>seconds</unit>"
-	"\n\t<type>Recorder</type>"
-	"</channel>";
+const std::string recording_timestamp_replace_node = "\n\t\t</channels>";
+
+const std::string recording_timestamp_double_string_channel_info =
+	"\n\t\t\t<channel>"
+	"\n\t\t\t\t<label>Recording Timestamp (Unix Epoch)</label>"
+	"\n\t\t\t\t<unit>seconds</unit>"
+	"\n\t\t\t\t<type>Recorder</type>"
+	"\n\t\t\t</channel>"
+	"\n\t\t</channels>";
+
+const std::string recording_timestamp_float32_channel_info = 
+	"\n\t\t\t<channel>"
+	"\n\t\t\t\t<label>Recording Timestamp Base (Unix Epoch)</label>"
+	"\n\t\t\t\t<unit>seconds</unit>"
+	"\n\t\t\t\t<type>Recorder</type>"
+	"\n\t\t\t</channel>"
+	"\n\t\t\t<channel>"
+	"\n\t\t\t\t<label>Recording Timestamp Remainder</label>"
+	"\n\t\t\t\t<unit>seconds</unit>"
+	"\n\t\t\t\t<type>Recorder</type>"
+	"\n\t\t\t</channel>"
+	"\n\t\t</channels>";
+
+
+const std::string recording_timestamp_int32_channel_info =
+	"\n\t\t\t<channel>"
+	"\n\t\t\t\t<label>Recording Timestamp Base (Unix Epoch)</label>"
+	"\n\t\t\t\t<unit>milliseconds</unit>"
+	"\n\t\t\t\t<type>Recorder</type>"
+	"\n\t\t\t</channel>"
+	"\n\t\t\t<channel>"
+	"\n\t\t\t\t<label>Recording Timestamp Remainder</label>"
+	"\n\t\t\t\t<unit>milliseconds</unit>"
+	"\n\t\t\t\t<type>Recorder</type>"
+	"\n\t\t\t</channel>"
+	"\n\t\t</channels>";
 
 using streamid_t = uint32_t;
 
@@ -143,6 +173,38 @@ private:
 
 	// === phase registration & condition checks ===
 	// writing is coordinated across threads in three phases to keep the file chunks sorted
+
+	template <typename T>
+	void inject_recording_timestamps_(std::vector<T> *chunk, int n_channels, int n_samples);
+
+	template<>
+	void inject_recording_timestamps_(std::vector<double> *chunk, int n_channels, int n_samples) {
+		double timestamp = epoch_time_now();
+		std::vector<double> new_chunk;
+		for (int i = 0; i < n_samples; i++) {
+			for (int j = 0; j < n_channels; j++) {
+				new_chunk.push_back(chunk->at((i * n_channels) + j));
+			}
+			new_chunk.push_back(timestamp);
+		}
+		*chunk = new_chunk;
+	}
+
+	template <>
+	void inject_recording_timestamps_(std::vector<char> *chunk, int n_channels, int n_samples) {}
+
+	template <>
+	void inject_recording_timestamps_(std::vector<int16_t> *chunk, int n_channels, int n_samples) {}
+
+	template <>
+	void inject_recording_timestamps_(std::vector<int32_t> *chunk, int n_channels, int n_samples) {}
+
+	template <>
+	void inject_recording_timestamps_(std::vector<float> *chunk, int n_channels, int n_samples) {}
+
+	template <>
+	void inject_recording_timestamps_(std::vector<std::string> *chunk, int n_channels, int n_samples) {}
+	
 
 	void enter_headers_phase(bool phase_locked);
 

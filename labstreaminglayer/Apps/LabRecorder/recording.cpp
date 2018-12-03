@@ -1,7 +1,7 @@
 #include "recording.h"
 #include <optional>
 //#include "conversions.h"
-
+#include <regex>
 #include <set>
 #include <sstream>
 #ifdef XDFZ_SUPPORT
@@ -85,9 +85,10 @@ inline void timed_join_or_detach(
 recording::recording(const std::string &filename, file_type_t filetype,
 	const std::vector<lsl::stream_info> &streams, const std::vector<std::string> &watchfor,
 	std::map<std::string, int> syncOptions, bool collect_offsets, bool recording_timestamps)
-	: file_(filename, filetype), offsets_enabled_(collect_offsets), recording_timestamps_enabled_(recording_timestamps), 
-		unsorted_(false), streamid_(0), shutdown_(false), headers_to_finish_(0), streaming_to_finish_(0),
-		sync_options_by_stream_(std::move(syncOptions)) {
+	: file_(filename, filetype), offsets_enabled_(collect_offsets),
+	  recording_timestamps_enabled_(recording_timestamps), unsorted_(false), streamid_(0),
+	  shutdown_(false), headers_to_finish_(0), streaming_to_finish_(0),
+	  sync_options_by_stream_(std::move(syncOptions)) {
 	// create a recording thread for each stream
 	for (const auto &stream : streams)
 		stream_threads_.emplace_back(
@@ -183,8 +184,45 @@ void recording::record_from_streaminfo(const lsl::stream_info &src, bool phase_l
 
 			// retrieve the stream header & get its XML version
 			info = in->info();
-			file_.init_stream_file(streamid, info.name()); // Ensures we have enough files for each stream (in the case of CSVs).
-			file_.write_stream_header(streamid, info.as_xml());
+			file_.init_stream_file(streamid,
+				info.name()); // Ensures we have enough files for each stream (in the case of CSVs).
+			std::string stream_meta_data = info.as_xml();
+			if (recording_timestamps_enabled_) {
+				// Inject 1 or 2 new channels to hold Unix recording timestamp for double, float, int, and string streams.
+				int added_channels = 0;
+				switch (src.channel_format()) {
+					case lsl::cf_int32:
+						stream_meta_data = std::regex_replace(stream_meta_data,
+							std::regex(recording_timestamp_replace_node),
+							recording_timestamp_int32_channel_info);
+						added_channels = 2;
+						break;
+					case lsl::cf_float32:
+						stream_meta_data = std::regex_replace(stream_meta_data,
+							std::regex(recording_timestamp_replace_node),
+							recording_timestamp_float32_channel_info);
+						added_channels = 2;
+						break;
+					case lsl::cf_double64:
+						stream_meta_data = std::regex_replace(stream_meta_data,
+							std::regex(recording_timestamp_replace_node),
+							recording_timestamp_double_string_channel_info);
+						added_channels = 1;
+						break;
+					case lsl::cf_string:
+						stream_meta_data = std::regex_replace(stream_meta_data,
+							std::regex(recording_timestamp_replace_node),
+							recording_timestamp_double_string_channel_info);
+						added_channels = 1;
+						break;
+				}
+				int channel_count = src.channel_count();
+				stream_meta_data = std::regex_replace(stream_meta_data,
+					std::regex("<channel_count>" + std::to_string(channel_count)),
+					"<channel_count>" + std::to_string(channel_count + added_channels));
+			}
+			
+			file_.write_stream_header(streamid, stream_meta_data);
 			std::cout << "Received header for stream " << src.name() << "." << std::endl;
 
 			leave_headers_phase(phase_locked);
@@ -359,6 +397,27 @@ void recording::enter_footers_phase(bool phase_locked) {
 	}
 }
 
+//template <typename T>
+//void recording::inject_recording_timestamps(std::vector<T> &chunk, int n_channels, int n_samples) {
+//	double timestamp = epoch_time_now();
+	/*else if (std::is_same<T, float>::value) {
+		std::vector<float> insert_values;
+		float timestampBase = (float)timestamp;
+		float remainder = (float)(timestamp - timestampBase);
+		insert_values.emplace_back(timestampBase);
+		insert_values.emplace_back(remainder);
+	} else if (std::is_same<T, int>::value) {
+		std::vector<int> insert_values;
+		int timestampBase = (int)timestamp;
+		int remainder = (int)((timestamp - timestampBase) * 1000);
+		insert_values.emplace_back(timestampBase);
+		insert_values.emplace_back(remainder);
+	} else if (std::is_same<T, std::string>::value) {
+		std::vector<std::string> insert_values;
+		insert_values.emplace_back(std::to_string(timestamp));
+	}*/
+//}
+
 template <class T>
 void recording::typed_transfer_loop(streamid_t streamid, double srate, const inlet_p &in,
 	double &first_timestamp, double &last_timestamp, uint64_t &sample_count) {
@@ -373,32 +432,39 @@ void recording::typed_transfer_loop(streamid_t streamid, double srate, const inl
 		// temporary data
 		std::vector<T> chunk;
 		std::vector<double> timestamps;
-		double recording_timestamp = -1;
-		
-		// Pull the first sample
+		int channelCount = 0;
+
+		// Pull the first sample.
 		first_timestamp = last_timestamp = in->pull_sample(chunk);
 		timestamps.push_back(first_timestamp);
-		if (recording_timestamps_enabled_) { recording_timestamp = epoch_time_now(); }
-		file_.write_data_chunk(streamid, timestamps, chunk,
-			in->get_channel_count(), recording_timestamp);
+		channelCount = in->get_channel_count();
+
+		if (recording_timestamps_enabled_) {
+			inject_recording_timestamps_(&chunk, channelCount, timestamps.size());
+			channelCount += 1;
+		}
+
+		file_.write_data_chunk(streamid, timestamps, chunk, channelCount);
 
 		auto next_pull = Clock::now();
 		while (!shutdown_) {
-			// get a chunk from the stream
+			// Get a chunk from the stream.
 			in->pull_chunk_multiplexed(chunk, &timestamps);
-			// for each sample...
+			// For each sample...
 			for (double &ts : timestamps) {
-				// if the time stamp can be deduced from the previous one...
+				// If the time stamp can be deduced from the previous one...
 				if (last_timestamp + sample_interval == ts) {
 					last_timestamp = ts + sample_interval;
-					ts = 0;
 				} else
 					last_timestamp = ts;
 			}
-			if (recording_timestamps_enabled_) { recording_timestamp = epoch_time_now(); }
-			// write the actual chunk
-			file_.write_data_chunk(
-				streamid, timestamps, chunk, in->get_channel_count(), recording_timestamp);
+			channelCount = in->get_channel_count();
+			if (recording_timestamps_enabled_) {
+				inject_recording_timestamps_(&chunk, channelCount, timestamps.size());
+				channelCount += 1;
+			}
+			// Write the actual chunk.
+			file_.write_data_chunk(streamid, timestamps, chunk, channelCount);
 			sample_count += timestamps.size();
 
 			next_pull += chunk_interval;
@@ -407,8 +473,8 @@ void recording::typed_transfer_loop(streamid_t streamid, double srate, const inl
 	} catch (std::exception &e) {
 		std::cerr << "Error in transfer thread: " << e.what() << std::endl;
 		offset_shutdown = true;
-		timed_join_or_detach(offset_thread);
+		if (offsets_enabled_) { timed_join_or_detach(offset_thread); }
 		throw;
 	}
-	timed_join_or_detach(offset_thread);
+	if (offsets_enabled_) { timed_join_or_detach(offset_thread); }
 }

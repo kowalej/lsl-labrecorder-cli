@@ -67,7 +67,7 @@ private:
 		if (filetype_ == file_type_t::xdf) {
 			return &global_file_mutex_;
 		} else {
-			return &file_mutex_.at(*streamid_p);
+			return &file_mutex_[*streamid_p];
 		}
 	}
 
@@ -78,6 +78,8 @@ private:
 	void _write_chunk(
 		chunk_tag_t tag, const std::string &content, const streamid_t *streamid_p = nullptr);
 
+	template <typename T> std::string _to_csv_string(T value);
+
 public:
 	/**
 	 * @brief LSLStreamWriter Construct a LSLStreamWriter object
@@ -87,15 +89,12 @@ public:
 
 	template <typename T>
 	void write_data_chunk(streamid_t streamid, const std::vector<double> &timestamps,
-		const std::vector<T> &chunk, uint32_t n_samples, uint32_t n_channels,
-		double recording_timestamp = -1);
+		const std::vector<T> &chunk, uint32_t n_samples, uint32_t n_channels);
 	template <typename T>
 	void write_data_chunk(streamid_t streamid, const std::vector<double> &timestamps,
-		const std::vector<T> &chunk, uint32_t n_channels,
-		double recording_timestamp = -1) {
+		const std::vector<T> &chunk, uint32_t n_channels) {
 		assert(timestamps.size() * n_channels == chunk.size());
-		write_data_chunk(
-			streamid, timestamps, chunk, timestamps.size(), n_channels, recording_timestamp);
+		write_data_chunk(streamid, timestamps, chunk, timestamps.size(), n_channels);
 	}
 	template <typename T>
 	void write_data_chunk_nested(streamid_t streamid, const std::vector<double> &timestamps,
@@ -147,9 +146,28 @@ inline void write_ts(std::ostream &out, double ts) {
 	}
 }
 
+template <> inline std::string LSLStreamWriter::_to_csv_string(char value) {
+	return std::to_string(value);
+}
+template <> inline std::string LSLStreamWriter::_to_csv_string(int16_t value) {
+	return std::to_string(value);
+}
+template <> inline std::string LSLStreamWriter::_to_csv_string(int32_t value) {
+	return std::to_string(value);
+}
+template <> inline std::string LSLStreamWriter::_to_csv_string(float value) {
+	return std::to_string(value);
+}
+template <> inline std::string LSLStreamWriter::_to_csv_string(double value) {
+	return std::to_string(value);
+}
+template <> inline std::string LSLStreamWriter::_to_csv_string(std::string value) { 
+	return value;
+}
+
 template <typename T>
 void LSLStreamWriter::write_data_chunk(streamid_t streamid, const std::vector<double> &timestamps,
-	const std::vector<T> &chunk, uint32_t n_samples, uint32_t n_channels, double recording_timestamp) {
+	const std::vector<T> &chunk, uint32_t n_samples, uint32_t n_channels) {
 
 	/**
 		Samples data chunk: [Tag 3] [VLA ChunkLen] [StreamID] [VLA NumSamples]
@@ -172,9 +190,6 @@ void LSLStreamWriter::write_data_chunk(streamid_t streamid, const std::vector<do
 			write_ts(out, ts);
 			// Write sample, get the current position in the chunk array back.
 			raw_data = write_sample_values(out, raw_data, n_channels);
-			if (!recording_timestamp != -1) { 
-				write_ts(out, recording_timestamp);
-			}
 		}
 		outstr = std::string(out.str());
 		// Replace length placeholder.
@@ -185,11 +200,15 @@ void LSLStreamWriter::write_data_chunk(streamid_t streamid, const std::vector<do
 
 	// CSV formatter.
 	else if (filetype_ == file_type_t::csv) {
-		for (double ts : timestamps) {
-			// Write sample, get the current position in the chunk array back.
-			// raw_data = write_sample_values(out, raw_data, n_channels);
+		for (int i = 0; i < timestamps.size(); i++) {
+			outstr += "\"" + std::to_string(timestamps[i]) + "\"";
+			for (int j = 0; j < n_channels; j++) {
+				outstr += ",";
+				// Write quotes sample values.
+				outstr += "\"" + _to_csv_string(chunk[(i * n_channels) + j]) + "\"";				
+			}
+			outstr += "\n";
 		}
-		outstr = std::string("hello");
 	}
 
 	std::lock_guard<std::mutex> lock(*_get_write_mutex(&streamid));
