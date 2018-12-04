@@ -184,9 +184,8 @@ void recording::record_from_streaminfo(const lsl::stream_info &src, bool phase_l
 
 			// retrieve the stream header & get its XML version
 			info = in->info();
-			file_.init_stream_file(streamid,
-				info.name()); // Ensures we have enough files for each stream (in the case of CSVs).
 			std::string stream_meta_data = info.as_xml();
+			file_.init_stream_file(streamid, info.name()); // Ensures we create enough files for each stream (in the case of CSVs).
 			if (recording_timestamps_enabled_) {
 				// Inject 1 or 2 new channels to hold Unix recording timestamp for double, float, int, and string streams.
 				int added_channels = 0;
@@ -397,27 +396,6 @@ void recording::enter_footers_phase(bool phase_locked) {
 	}
 }
 
-//template <typename T>
-//void recording::inject_recording_timestamps(std::vector<T> &chunk, int n_channels, int n_samples) {
-//	double timestamp = epoch_time_now();
-	/*else if (std::is_same<T, float>::value) {
-		std::vector<float> insert_values;
-		float timestampBase = (float)timestamp;
-		float remainder = (float)(timestamp - timestampBase);
-		insert_values.emplace_back(timestampBase);
-		insert_values.emplace_back(remainder);
-	} else if (std::is_same<T, int>::value) {
-		std::vector<int> insert_values;
-		int timestampBase = (int)timestamp;
-		int remainder = (int)((timestamp - timestampBase) * 1000);
-		insert_values.emplace_back(timestampBase);
-		insert_values.emplace_back(remainder);
-	} else if (std::is_same<T, std::string>::value) {
-		std::vector<std::string> insert_values;
-		insert_values.emplace_back(std::to_string(timestamp));
-	}*/
-//}
-
 template <class T>
 void recording::typed_transfer_loop(streamid_t streamid, double srate, const inlet_p &in,
 	double &first_timestamp, double &last_timestamp, uint64_t &sample_count) {
@@ -441,7 +419,6 @@ void recording::typed_transfer_loop(streamid_t streamid, double srate, const inl
 
 		if (recording_timestamps_enabled_) {
 			inject_recording_timestamps_(&chunk, channelCount, timestamps.size());
-			channelCount += 1;
 		}
 
 		file_.write_data_chunk(streamid, timestamps, chunk, channelCount);
@@ -461,7 +438,6 @@ void recording::typed_transfer_loop(streamid_t streamid, double srate, const inl
 			channelCount = in->get_channel_count();
 			if (recording_timestamps_enabled_) {
 				inject_recording_timestamps_(&chunk, channelCount, timestamps.size());
-				channelCount += 1;
 			}
 			// Write the actual chunk.
 			file_.write_data_chunk(streamid, timestamps, chunk, channelCount);

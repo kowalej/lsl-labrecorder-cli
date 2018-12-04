@@ -10,6 +10,9 @@
 #include <thread>
 #include <type_traits>
 #include <vector>
+#include <regex>
+
+#include "rapidxml.hpp"
 
 #include <lsl_cpp.h>
 
@@ -22,6 +25,7 @@ using outfile_t = std::ofstream;
 #endif
 
 using streamid_t = uint32_t;
+using namespace rapidxml;
 
 // the currently defined chunk tags
 enum class chunk_tag_t : uint16_t {
@@ -100,6 +104,14 @@ public:
 	void write_data_chunk_nested(streamid_t streamid, const std::vector<double> &timestamps,
 		const std::vector<std::vector<T>> &chunk);
 
+	void clean_stream_name(std::string &stream_name){ 
+		std::string illegalChars = "\\/:?\"<>|*"; // Remove since they can cause path name issues.
+		for (auto it = stream_name.begin(); it < stream_name.end(); ++it) {
+			bool found = illegalChars.find(*it) != std::string::npos;
+			if (found) { *it = '_'; } // Replace with underscore.
+		}
+	}
+
 	/**
 	 * @brief init_stream Ensures a file is available for the referenced stream.
 	 * For XDF recordings, this can be called multiple times but only one file is created.
@@ -107,7 +119,7 @@ public:
 	 * @param streamid Numeric stream identifier
 	 * @param content XML-formatted stream header
 	 */
-	void init_stream_file(streamid_t streamid, std::string stream_name = "");
+	void init_stream_file(streamid_t streamid, std::string stream_name);
 
 	/**
 	 * @brief write_stream_header Write the stream header, see also
@@ -162,7 +174,7 @@ template <> inline std::string LSLStreamWriter::_to_csv_string(double value) {
 	return std::to_string(value);
 }
 template <> inline std::string LSLStreamWriter::_to_csv_string(std::string value) { 
-	return value;
+	return "\"" + value + "\"";
 }
 
 template <typename T>
@@ -201,11 +213,11 @@ void LSLStreamWriter::write_data_chunk(streamid_t streamid, const std::vector<do
 	// CSV formatter.
 	else if (filetype_ == file_type_t::csv) {
 		for (int i = 0; i < timestamps.size(); i++) {
-			outstr += "\"" + std::to_string(timestamps[i]) + "\"";
+			outstr += std::to_string(timestamps[i]);
 			for (int j = 0; j < n_channels; j++) {
 				outstr += ",";
-				// Write quotes sample values.
-				outstr += "\"" + _to_csv_string(chunk[(i * n_channels) + j]) + "\"";				
+				// Write sample values.
+				outstr += _to_csv_string(chunk[(i * n_channels) + j]);				
 			}
 			outstr += "\n";
 		}

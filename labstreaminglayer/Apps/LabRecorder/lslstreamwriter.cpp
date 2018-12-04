@@ -1,7 +1,6 @@
 #include "lslstreamwriter.h"
 #include <iostream>
 
-
 std::string replace_all(std::string str, const std::string &from, const std::string &to) {
 	size_t start_pos = 0;
 	while ((start_pos = str.find(from, start_pos)) != std::string::npos) {
@@ -81,11 +80,11 @@ void LSLStreamWriter::init_stream_file(streamid_t streamid, std::string stream_n
 
 	// CSV setup.
 	if (filetype_ == file_type_t::csv) {
-		auto stream_name_safe = replace_all(stream_name, ":", ".");
+		clean_stream_name(stream_name); // Removes invalid path chars.
 		std::string csv_filename =
-			replace_all(filename_, ".csv", " - " + stream_name_safe + ".data.csv");
+			replace_all(filename_, ".csv", " - " + stream_name + ".data.csv");
 		std::string meta_filename =
-			replace_all(filename_, ".csv", " - " + stream_name_safe + ".meta.xml");
+			replace_all(filename_, ".csv", " - " + stream_name + ".meta.xml");
 		data_files_[streamid] = outfile_t(csv_filename,
 			std::ios::binary | std::ios::trunc); // Create a data file for each stream.
 		meta_files_[streamid] = outfile_t(meta_filename,
@@ -100,6 +99,29 @@ void LSLStreamWriter::init_stream_file(streamid_t streamid, std::string stream_n
 void LSLStreamWriter::write_stream_header(streamid_t streamid, const std::string &content) {
 	std::lock_guard<std::mutex> lock(*_get_write_mutex(&streamid));
 	_write_chunk(chunk_tag_t::streamheader, content, &streamid);
+
+	// Write the file header for CSV.
+	if (filetype_ == file_type_t::csv){
+		std::string header_row = "lsl_time_stamp,";
+
+		// We need to make a safe copy of the vector to let rapidxml parse.
+		std::vector<char> content_safe;
+		content_safe.reserve(content.length() + 1);
+		content_safe.assign(content.begin(), content.end());
+		content_safe.push_back('\0'); // Special char that helps rapidxml recognize end of file.
+
+		xml_document<> doc;
+		doc.parse<0>(&content_safe[0]);
+		xml_node<> *root_node = doc.first_node("info")->first_node("desc")->first_node("channels");
+		for (xml_node<> *channel_node = root_node->first_node("channel"); channel_node;
+			 channel_node = channel_node->next_sibling()) {
+			std::string channel_name(channel_node->first_node("label")->value());
+			header_row += channel_name;
+			if (channel_node->next_sibling()) { header_row += ","; }
+		}
+		header_row += "\n";
+		_write_chunk(chunk_tag_t::samples, header_row, &streamid);
+	}
 }
 
 void LSLStreamWriter::write_stream_footer(streamid_t streamid, const std::string &content) {
