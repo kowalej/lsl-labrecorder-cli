@@ -14,14 +14,14 @@ to the liblsl C/C++ library
 various language bindings (e.g.
 [`LSL/liblsl-Python`](https://github.com/labstreaminglayer/liblsl-Python)),
 the Apps to stream data from several types of devices including template Examples, and the
-[LabRecorder](`https://github.com/labstreaminglayer/App-LabRecorder`).:
+[CuriaRecorder](`https://github.com/labstreaminglayer/App-CuriaRecorder`).:
 
 ```bash
   labstreaminglayer
   ├── Apps
   │   ├── AMTI ForcePlate
   │   ├── Examples
-  │   ├── LabRecorder
+  │   ├── CuriaRecorder
   │   ├── [several other apps]
   │   └── Wiimote
   └── LSL
@@ -212,7 +212,7 @@ then you will have to provide some optional arguments to the cmake command.
 
 - [Generator](https://cmake.org/cmake/help/latest/manual/cmake-generators.7.html#cmake-generators): `-G <generator name>`.
 - Apps: `-DLSLAPPS_<AppName>=ON`.
-    - `-DLSLAPPS_LabRecorder=ON`
+    - `-DLSLAPPS_CuriaRecorder=ON`
     - `-DLSLAPPS_XDFBrowser=ON`
     - `-DLSLAPPS_OpenVR=ON`
     - TODO: Each app should have its cmake option easily accessible in its readme.
@@ -226,8 +226,8 @@ then you will have to provide some optional arguments to the cmake command.
 
 Here are some example cmake commands:
 
-- Chad's Windows build: `cmake .. -G "Visual Studio 14 2015 Win64" -DLSL_LSLBOOST_PATH="lslboost" -DQt5_DIR=C:\Qt\5.11.1\msvc2015_64\lib\cmake\Qt5 -DBOOST_ROOT=C:\local\boost_1_67_0 -DLSLAPPS_LabRecorder=ON -DLSLAPPS_XDFBrowser=ON -DLSLAPPS_OpenVR=ON`
-- Chad's Mac build: `cmake .. -DLSL_LSLBOOST_PATH="lslboost" -DLSLAPPS_Examples=ON -DLSLAPPS_LabRecorder=ON -DLSLAPPS_Benchmarks=ON -DLSLAPPS_XDFBrowser=ON -DQt5_DIR=$(brew --prefix qt)/lib/cmake/Qt5/`
+- Chad's Windows build: `cmake .. -G "Visual Studio 14 2015 Win64" -DLSL_LSLBOOST_PATH="lslboost" -DQt5_DIR=C:\Qt\5.11.1\msvc2015_64\lib\cmake\Qt5 -DBOOST_ROOT=C:\local\boost_1_67_0 -DLSLAPPS_CuriaRecorder=ON -DLSLAPPS_XDFBrowser=ON -DLSLAPPS_OpenVR=ON`
+- Chad's Mac build: `cmake .. -DLSL_LSLBOOST_PATH="lslboost" -DLSLAPPS_Examples=ON -DLSLAPPS_CuriaRecorder=ON -DLSLAPPS_Benchmarks=ON -DLSLAPPS_XDFBrowser=ON -DQt5_DIR=$(brew --prefix qt)/lib/cmake/Qt5/`
 
 ### Configure CMake options in VS 2017
 
@@ -251,7 +251,7 @@ For example, under `"name": "x64-Release",` and immediately after `"ctestCommand
           "value": "ON"
         },
         {
-          "name": "LSLAPPS_LabRecorder",
+          "name": "LSLAPPS_CuriaRecorder",
           "value": "ON"
         },
         {

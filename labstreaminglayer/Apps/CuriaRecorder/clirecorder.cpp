@@ -6,10 +6,18 @@
 #include <conio.h>
 #include <iostream>
 #include <time.h>
+#include <csignal>
 
 #define TIMEOUT_DEFAULT 5
 #define RESOLVE_TIMEOUT_DEFAULT 1
 
+
+bool NOEXIT = true;
+
+void exitHandler(int signum) {
+	std::cout << "Exit signal recieved, shutting down.\n";
+	NOEXIT = false;
+}
 
 bool find_streams(
 	QString query, double timeout, double resolve_timeout, std::vector<lsl::stream_info> &streams) {
@@ -21,9 +29,9 @@ bool find_streams(
 	std::vector<lsl::stream_info> all_streams;
 
 	std::cout << "Searching for streams..." << std::endl;
-	while (!_kbhit()) // Check for keyboard hit to cancel.
-	{
-		// Check if timeout limit hit or not.
+
+	signal(SIGINT, exitHandler); // Check for Ctrl + C hit to cancel.
+	while (NOEXIT) { 
 		if (all_streams.size() > 0 || ((clock() - start) / CLOCKS_PER_SEC) >= timeout) { break; }
 		all_streams = lsl::resolve_streams(resolve_timeout);
 	}
@@ -88,8 +96,10 @@ int execute_record_command(QString query, QString filename, file_type_t file_typ
 
 
 	std::vector<std::string> watchfor;
-	std::map<std::string, int> sync_options;
-	std::cout << "--- Starting the recording, press ENTER to quit... ---" << std::endl;
+	std::map<std::string, int> sync_options; // Not yet supported.
+	std::cout << "-------------------------------------------------------" << std::endl;
+	std::cout << "--- Starting the recording, press Ctrl+C to quit... ---" << std::endl;
+	std::cout << "-------------------------------------------------------" << std::endl;
 	recording r(
 		filename.toStdString(), 
 		file_type, 
@@ -98,7 +108,10 @@ int execute_record_command(QString query, QString filename, file_type_t file_typ
 		sync_options, 
 		collect_offsets,
 		recording_timestamps);
-	std::cin.get();
+	signal(SIGINT, exitHandler); // Check for Ctrl + C hit to cancel.
+	while (NOEXIT) { 
+		std::this_thread::sleep_for(std::chrono::milliseconds(1000)); 
+	}
 	return 0;
 }
 
@@ -141,6 +154,7 @@ int main(int argc, char **argv) {
 	QCoreApplication app(argc, argv);
 	QCoreApplication::setApplicationName("Curia Recorder");
 	QCoreApplication::setApplicationVersion("1.0");
+	
 #pragma endregion
 
 #pragma region Process the CLI options
@@ -152,6 +166,7 @@ int main(int argc, char **argv) {
 		QCommandLineParser::OptionsAfterPositionalArgumentsMode::ParseAsOptions);
 
 	parser.addPositionalArgument("command", "The command to execute. See commands below:\n"
+											"--------------------------------------------\n"
 											"record - Start an LSL recording.\n"
 											"list - List all LSL streams.\n"
 											"find - Apply query to find LSL stream(s).\n");

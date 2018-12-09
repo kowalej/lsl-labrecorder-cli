@@ -2,7 +2,7 @@
 
 An app is a (small) program that acquires data from a device (EEG amplifier,
 mouse, eye tracker, Wiimote) or receives data to do something meaningful with
-it (e.g. LabRecorder, visualization).
+it (e.g. CuriaRecorder, visualization).
 
 ## C++ apps
 

@@ -38,9 +38,9 @@
 [submodule "Apps/EmbarcaderoXE"]
 	path = Apps/EmbarcaderoXE
 	url = https://github.com/labstreaminglayer/App-EmbarcaderoXE.git
-[submodule "Apps/LabRecorder"]
-	path = Apps/LabRecorder
-	url = https://github.com/labstreaminglayer/App-LabRecorder.git
+[submodule "Apps/CuriaRecorder"]
+	path = Apps/CuriaRecorder
+	url = https://github.com/labstreaminglayer/App-CuriaRecorder.git
 [submodule "Apps/Wiimote"]
 	path = Apps/Wiimote
 	url = https://github.com/labstreaminglayer/App-Wiimote.git

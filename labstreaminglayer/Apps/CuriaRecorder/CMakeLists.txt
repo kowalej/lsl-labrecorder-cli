@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.5)
 
-project(LabRecorder
+project(CuriaRecorder
 	LANGUAGES CXX
 	VERSION 1.12.0)
 
@@ -43,7 +43,7 @@ add_executable(${PROJECT_NAME} MACOSX_BUNDLE #WIN32
 	LSLStreamWriter.cpp
 )
 
-add_executable(LabRecorderCLI MACOSX_BUNDLE
+add_executable(CuriaRecorderCLI MACOSX_BUNDLE
 	clirecorder.cpp
 	recording.h
 	recording.cpp
@@ -64,7 +64,7 @@ target_link_libraries(${PROJECT_NAME}
 	LSL::lsl
 )
 
-target_link_libraries(LabRecorderCLI
+target_link_libraries(CuriaRecorderCLI
 	PRIVATE
 	Qt5::Widgets
 	Threads::Threads
@@ -106,7 +106,7 @@ if(LABRECORDER_XDFZ)
 endif()
 
 installLSLApp(${PROJECT_NAME})
-installLSLApp(LabRecorderCLI)
+installLSLApp(CuriaRecorderCLI)
 installLSLApp(testLSLStreamWriter)
 installLSLAuxFiles(${PROJECT_NAME}
 	default_config.cfg

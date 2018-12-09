@@ -17,7 +17,7 @@ The **LSL distribution** consists of:
   [Android](https://github.com/labstreaminglayer/liblsl-Android/)/iOS, x86/amd64/arm)
   and forms the heart of the project.
 - A suite of tools built on top of the library, including a
-  [recording program](https://github.com/labstreaminglayer/App-LabRecorder),
+  [recording program](https://github.com/labstreaminglayer/App-CuriaRecorder),
   [importers](https://github.com/sccn/labstreaminglayer/wiki/ImportingRecordingsInMatlab.wiki),
   and apps that make data from a range of
   [acquisition hardware](https://github.com/sccn/labstreaminglayer/wiki/SupportedDevices.wiki)
@@ -95,7 +95,7 @@ This feature is explained in more detail in the
 ## File Format
 
 The transport API itself does not endorse or provide a particular file format, but the provided recording
-program (`LabRecorder`) <!--and Python/C++ library (`RecorderLib`)--> records into the XDF file format
+program (`CuriaRecorder`) <!--and Python/C++ library (`RecorderLib`)--> records into the XDF file format
 ([Extensible Data Format](https://github.com/sccn/xdf)). XDF was designed concurrently with
 the lab streaming layer and supports the full feature set of LSL (including multi-stream container
 files, per-stream arbitrarily large XML headers, all sample formats as well as time-synchronization

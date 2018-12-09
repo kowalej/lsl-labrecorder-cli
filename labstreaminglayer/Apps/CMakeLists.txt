@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.5)
 
-option(LSLAPPS_LabRecorder      "Build the recorder app"            ON)
+option(LSLAPPS_CuriaRecorder      "Build the recorder app"            ON)
 
 # add all Apps the user wants to build
 get_cmake_property(appnames CACHE_VARIABLES)

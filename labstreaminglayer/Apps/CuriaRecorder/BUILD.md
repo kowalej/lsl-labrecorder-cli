@@ -43,7 +43,7 @@ Add the "variable" section to the x86-Release group, so that it looks approximat
       "value": "C:\\local\\boost_1_65_1"
     },
     {
-      "name": "LSLAPPS_LabRecorder",
+      "name": "LSLAPPS_CuriaRecorder",
       "value": "ON"
     }
   ]
@@ -54,7 +54,7 @@ Add the "variable" section to the x86-Release group, so that it looks approximat
 
  * Note that it is not a typo that Qt refers to msvc2015 rather than msvc2017.
 
- * Select Startup Item (green arrow dropdown) -> LabRecorder.exe (Install)
+ * Select Startup Item (green arrow dropdown) -> CuriaRecorder.exe (Install)
 
  * Click the green arrow. The application should launch.
 
@@ -77,17 +77,17 @@ You will need to download and install:<BR/>
  * [Boost 1.65.1](https://sourceforge.net/projects/boost/files/boost-binaries/1.65.1/boost_1_65_1-msvc-14.1-32.exe/download)
 
 From the command line, from the labstreaminglayer folder:
- * labstreaminglayer\build>cmake .. -G "Visual Studio 14 2015" -DQt5_DIR="C:/Qt/5.11.1/msvc2015/lib/cmake/Qt5" -DBOOST_ROOT=C:\boost\boost_1_65_1 -DLSLAPPS_LabRecorder=ON
+ * labstreaminglayer\build>cmake .. -G "Visual Studio 14 2015" -DQt5_DIR="C:/Qt/5.11.1/msvc2015/lib/cmake/Qt5" -DBOOST_ROOT=C:\boost\boost_1_65_1 -DLSLAPPS_CuriaRecorder=ON
 
  * labstreaminglayer\build>cmake --build . --config Release --target install
 
 To see a list of possible generators, run the command with garbage in the -G option. 
 
-The executable is in labstreaminglayer\build\install\LabRecorder.
+The executable is in labstreaminglayer\build\install\CuriaRecorder.
 
 You can open the Visual Studio Project with labstreaminglayer\build\LabStreamingLayer.sln.
 
-The command line install feature does not put build products in the sample place as when you build inside of Visual Studio. To get running to work inside of Visual Studio, it is necessary to copy the support files from labstreaminglayer\build\install\LabRecorder to labstreaminglayer\build\Apps\LabRecorder\Release. You must also right click LabRecorder -> Set as Startup Project and select Release and Win32.<BR/>
+The command line install feature does not put build products in the sample place as when you build inside of Visual Studio. To get running to work inside of Visual Studio, it is necessary to copy the support files from labstreaminglayer\build\install\CuriaRecorder to labstreaminglayer\build\Apps\CuriaRecorder\Release. You must also right click CuriaRecorder -> Set as Startup Project and select Release and Win32.<BR/>
 
 If any significant changes are made to the project (such as changing Qt or Visual Stuido version) it is recommended that you delete or rename the build folder and start over. Various partial cleaning processes do not work well.
 
