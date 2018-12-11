@@ -140,7 +140,7 @@ external_libs/
 # unfortunately, in the case of linux, since there is no extension, we must name it
 linux/PupilPro
 linux/XDFBrowser
-linux/CuriaRecorder
+linux/LabRecorder
 
 ## C++.gitignore:
 

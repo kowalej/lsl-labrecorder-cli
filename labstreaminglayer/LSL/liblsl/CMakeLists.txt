@@ -12,6 +12,7 @@ if(NOT CMAKE_DEBUG_POSTFIX)
 endif()
 option(LSL_UNIXFOLDERS "Use the unix folder layout for install targets" Off)
 option(LSL_NO_FANCY_LIBNAME "Skip library name decorations (32/64/-debug)")
+option(LSL_LEGACY_CPP_ABI "Build legacy C++ ABI" OFF)
 
 # lsl uses boost, but several other projects (e.g. Matlab) also use boost.
 # To prevent clashes with different boost versions, lsl ships a subset of
@@ -87,7 +88,7 @@ set (sources
 	src/udp_server.cpp
 	src/udp_server.h
 )
-if(MSVC)
+if(LSL_LEGACY_CPP_ABI)
 	list(APPEND sources src/legacy/legacy_abi.cpp src/legacy/legacy_abi.h)
 endif()
 
@@ -114,17 +115,15 @@ if(GIT_FOUND)
 		COMMAND ${GIT_EXECUTABLE} describe --tags HEAD
 		WORKING_DIRECTORY "${CMAKE_CURRENT_LIST_DIR}"
 		OUTPUT_VARIABLE lslgitrevision
-		ERROR_QUIET
 		OUTPUT_STRIP_TRAILING_WHITESPACE
 	)
 	execute_process(
 		COMMAND ${GIT_EXECUTABLE} rev-parse --symbolic-full-name --abbrev-ref @
 		WORKING_DIRECTORY "${CMAKE_CURRENT_LIST_DIR}"
 		OUTPUT_VARIABLE lslgitbranch
-		ERROR_QUIET
 		OUTPUT_STRIP_TRAILING_WHITESPACE
 	)
-
+	message(STATUS "Git version information: ${lslgitbranch}/${lslgitrevision}")
 else()
 	set(lslgitrevision "unknown")
 	set(lslgitbranch "unknown")

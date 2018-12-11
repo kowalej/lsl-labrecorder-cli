@@ -1,3 +1,16 @@
+# Major Update as of Nov 23, 2018
+
+The old labstreaminglayer repository has moved to https://github.com/sccn/lsl_archived . 
+
+If you cloned/forked labstreaminglayer before the move, then you must redo this to get the latest source code. Please note that this repository uses submodules so you will have to do a recursive clone: `git clone --recursive https://github.com/sccn/labstreaminglayer.git`.
+
+This repository is a container for all labstreaminglayer-related repositories.
+The core library (liblsl) is hosted in the sccn organization.
+Language wrappers and apps are hosted in the https://github.com/labstreaminglayer organization.
+
+If you have any outstanding issues that need addressing then please comment on them in the lsl_archived repo. We will continue to monitor that repo and will transfer issues here as needed.
+If you were working on any changes against the old repo then you can make a pull request against lsl_archived and we will take care of applying it to the new repo.
+
 # Summary
 
 The **lab streaming layer** (LSL) is a system for the unified collection of measurement time series
@@ -6,9 +19,9 @@ access as well as optionally the centralized collection, viewing and disk record
 
 The **LSL distribution** consists of:
 - The core transport library
-([liblsl](https://github.com/labstreaminglayer/liblsl/)) and its language interfaces
-  ([C](https://github.com/labstreaminglayer/liblsl/),
-  [C++](https://github.com/labstreaminglayer/liblsl/),
+([liblsl](https://github.com/sccn/liblsl/)) and its language interfaces
+  ([C](https://github.com/sccn/liblsl/),
+  [C++](https://github.com/sccn/liblsl/),
   [Python](https://github.com/labstreaminglayer/liblsl-Python/),
   [Java](https://github.com/labstreaminglayer/liblsl-Java/),
   [C#](https://github.com/labstreaminglayer/liblsl-Csharp/),
@@ -17,8 +30,8 @@ The **LSL distribution** consists of:
   [Android](https://github.com/labstreaminglayer/liblsl-Android/)/iOS, x86/amd64/arm)
   and forms the heart of the project.
 - A suite of tools built on top of the library, including a
-  [recording program](https://github.com/labstreaminglayer/App-CuriaRecorder),
-  [importers](https://github.com/sccn/labstreaminglayer/wiki/ImportingRecordingsInMatlab.wiki),
+  [recording program](https://github.com/labstreaminglayer/App-LabRecorder),
+  [file importers](https://github.com/sccn/xdf),
   and apps that make data from a range of
   [acquisition hardware](https://github.com/sccn/labstreaminglayer/wiki/SupportedDevices.wiki)
   available on the lab network (for example audio, EEG, or motion capture).
@@ -34,7 +47,7 @@ either download ready-to-use binary packages or clone just the repositories you 
 
 ## Download Binary Releases
 
-You can find old releases on our FTP site: ftp://sccn.ucsd.edu/pub/software/LSL/.
+You can find *old* releases on our FTP site: ftp://sccn.ucsd.edu/pub/software/LSL/.
 
 These releases are out of date. We are working toward an automated build and deployment system
 but it is not ready yet.
@@ -95,7 +108,7 @@ This feature is explained in more detail in the
 ## File Format
 
 The transport API itself does not endorse or provide a particular file format, but the provided recording
-program (`CuriaRecorder`) <!--and Python/C++ library (`RecorderLib`)--> records into the XDF file format
+program (`LabRecorder`) <!--and Python/C++ library (`RecorderLib`)--> records into the XDF file format
 ([Extensible Data Format](https://github.com/sccn/xdf)). XDF was designed concurrently with
 the lab streaming layer and supports the full feature set of LSL (including multi-stream container
 files, per-stream arbitrarily large XML headers, all sample formats as well as time-synchronization
@@ -115,11 +128,12 @@ frequently asked questions.
 ## How to get support
 
 If you are having trouble with LSL, there are few things you can do to get help.
-First, search this GitHub repository's issues list, including closed issues.
+First, look to the [Wiki](https://github.com/sccn/labstreaminglayer/wiki), especially the [frequently asked questions](https://github.com/sccn/labstreaminglayer/wiki/Frequently-Asked-Questions).
+Second, search the issues list, including closed issues, in this repository and in the archived repository [here](https://github.com/sccn/lsl_archived).
 If you don't find what you are looking for, then you can create a new issue. Try to include as much
 information as possible about your device (if applicable), your computing environment (operating
 system, processor achitecture), what you have tested so far, and also provide logs or other error
-messages if available. If you end up creating a new issue, please close it once the issue is solved.
+messages if available. If you create a new issue then please be responsive to follow-up questions and be sure to close it once the issue is solved.
 
 You can also try joining the LabStreamingLayer `#users` channel on Slack. [Invite Link](https://join.slack.com/t/labstreaminglayer/shared_invite/enQtMzA2NjEwNDk0NjA5LWI2MmI4MjBhYjgyMmRmMzg2NzEzODc2M2NjNDIwODhmNzViZmRmMWQyNTBkYzkwNmUyMzZhOTU5ZGFiYzkzMzQ).
 Someone there may be able to get to the bottom of your problem through conversation.

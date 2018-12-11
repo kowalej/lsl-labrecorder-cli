@@ -18,7 +18,7 @@
 	url = https://github.com/labstreaminglayer/liblsl-Python
 [submodule "LSL/liblsl"]
 	path = LSL/liblsl
-	url = https://github.com/labstreaminglayer/liblsl
+	url = https://github.com/sccn/liblsl
 	update = rebase
 [submodule "Apps/OutOfTreeTest"]
 	path = Apps/OutOfTreeTest
@@ -38,9 +38,9 @@
 [submodule "Apps/EmbarcaderoXE"]
 	path = Apps/EmbarcaderoXE
 	url = https://github.com/labstreaminglayer/App-EmbarcaderoXE.git
-[submodule "Apps/CuriaRecorder"]
-	path = Apps/CuriaRecorder
-	url = https://github.com/labstreaminglayer/App-CuriaRecorder.git
+[submodule "Apps/LabRecorder"]
+	path = Apps/LabRecorder
+	url = https://github.com/labstreaminglayer/App-LabRecorder.git
 [submodule "Apps/Wiimote"]
 	path = Apps/Wiimote
 	url = https://github.com/labstreaminglayer/App-Wiimote.git

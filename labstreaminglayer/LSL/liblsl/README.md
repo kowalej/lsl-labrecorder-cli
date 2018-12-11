@@ -17,7 +17,7 @@ in the [main repository](https://github.com/labstreaminglayer/labstreaminglayer)
 
 You might also be interested in
 [apps to connect recording equipment](https://github.com/labstreaminglayer/labstreaminglayer/tree/master/Apps)
-and the [CuriaRecorder](https://github.com/labstreaminglayer/App-CuriaRecorder).
+and the [LabRecorder](https://github.com/labstreaminglayer/App-LabRecorder).
 
 Please stay put while we figure out how to best offer precompiled packages.
 

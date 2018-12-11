@@ -84,11 +84,11 @@ inline void timed_join_or_detach(
 
 recording::recording(const std::string &filename, file_type_t filetype,
 	const std::vector<lsl::stream_info> &streams, const std::vector<std::string> &watchfor,
-	std::map<std::string, int> syncOptions, bool collect_offsets, bool recording_timestamps)
+	std::map<std::string, uint32_t> sync_options, uint32_t sync_default, bool collect_offsets, bool recording_timestamps)
 	: file_(filename, filetype), offsets_enabled_(collect_offsets),
 	  recording_timestamps_enabled_(recording_timestamps), unsorted_(false), streamid_(0),
 	  shutdown_(false), headers_to_finish_(0), streaming_to_finish_(0),
-	  sync_options_by_stream_(std::move(syncOptions)) {
+	  sync_options_by_stream_(std::move(sync_options)), sync_default_(sync_default) {
 	// create a recording thread for each stream
 	for (const auto &stream : streams)
 		stream_threads_.emplace_back(
@@ -171,6 +171,9 @@ void recording::record_from_streaminfo(const lsl::stream_info &src, bool phase_l
 			in.reset(new lsl::stream_inlet(src));
 			auto it = sync_options_by_stream_.find(src.name() + " (" + src.hostname() + ")");
 			if (it != sync_options_by_stream_.end()) in->set_postprocessing(it->second);
+			else if (sync_default_ > -1) {
+				in->set_postprocessing(sync_default_);
+			}
 
 			try {
 				in->open_stream(max_open_wait);
@@ -335,10 +338,10 @@ void recording::record_offsets(
 			// sleep for the interval
 			std::this_thread::sleep_for(offset_interval);
 			// query the time offset
-			double offset, now;
+			double offset = std::numeric_limits<double>::infinity();
+			double now = lsl::local_clock();
 			try {
-				offset = in->time_correction(2);
-				now = lsl::local_clock();
+				offset = in->time_correction(2.5);
 			} catch (lsl::timeout_error &) {
 				std::cerr << "Timeout in time correction query for stream " << streamid
 						  << std::endl;

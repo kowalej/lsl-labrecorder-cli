@@ -4,9 +4,9 @@
 #include <QCommandLineParser>
 #include <Windows.h>
 #include <conio.h>
+#include <csignal>
 #include <iostream>
 #include <time.h>
-#include <csignal>
 
 #define TIMEOUT_DEFAULT 5
 #define RESOLVE_TIMEOUT_DEFAULT 1
@@ -31,7 +31,7 @@ bool find_streams(
 	std::cout << "Searching for streams..." << std::endl;
 
 	signal(SIGINT, exitHandler); // Check for Ctrl + C hit to cancel.
-	while (NOEXIT) { 
+	while (NOEXIT) {
 		if (all_streams.size() > 0 || ((clock() - start) / CLOCKS_PER_SEC) >= timeout) { break; }
 		all_streams = lsl::resolve_streams(resolve_timeout);
 	}
@@ -100,18 +100,10 @@ int execute_record_command(QString query, QString filename, file_type_t file_typ
 	std::cout << "-------------------------------------------------------" << std::endl;
 	std::cout << "--- Starting the recording, press Ctrl+C to quit... ---" << std::endl;
 	std::cout << "-------------------------------------------------------" << std::endl;
-	recording r(
-		filename.toStdString(), 
-		file_type, 
-		streams, 
-		watchfor, 
-		sync_options, 
-		collect_offsets,
+	recording r(filename.toStdString(), file_type, streams, watchfor, sync_options, collect_offsets,
 		recording_timestamps);
 	signal(SIGINT, exitHandler); // Check for Ctrl + C hit to cancel.
-	while (NOEXIT) { 
-		std::this_thread::sleep_for(std::chrono::milliseconds(1000)); 
-	}
+	while (NOEXIT) { std::this_thread::sleep_for(std::chrono::milliseconds(1000)); }
 	return 0;
 }
 
@@ -138,7 +130,10 @@ void process_command(QCommandLineParser &parser, QCoreApplication &app, QStringL
 	// Process args.
 	parser.process(app);
 	parser.process(QCoreApplication::arguments());
-	if (parser.isSet("help")) { parser.showHelp(); }
+	if (parser.isSet("help")) {
+		std::cout << parser.helpText().replace(" [options]", "").toStdString() << std::endl;
+		exit(0);
+	}
 	pos_args = parser.positionalArguments();
 	int num_pos_args = pos_args.count() - 1;
 	if (num_pos_args < expected_num_pos_args) {
@@ -154,10 +149,11 @@ int main(int argc, char **argv) {
 	QCoreApplication app(argc, argv);
 	QCoreApplication::setApplicationName("Curia Recorder");
 	QCoreApplication::setApplicationVersion("1.0");
-	
+
 #pragma endregion
 
 #pragma region Process the CLI options
+	// Main parser which derives subcommand.
 	QCommandLineParser parser;
 	parser.setApplicationDescription("\nRecord and discover LSL streams.");
 	parser.addHelpOption();
@@ -169,7 +165,18 @@ int main(int argc, char **argv) {
 											"--------------------------------------------\n"
 											"record - Start an LSL recording.\n"
 											"list - List all LSL streams.\n"
-											"find - Apply query to find LSL stream(s).\n");
+											"find - Find LSL streams via query.\n");
+
+	// Command parser which processes the subcommand.
+	QCommandLineParser commandParser;
+	QCommandLineOption custom_help_option(QStringList() << "?"
+														<< "h"
+														<< "help",
+		"Displays this help.");
+	commandParser.addOption(custom_help_option);
+
+	commandParser.setOptionsAfterPositionalArgumentsMode(
+		QCommandLineParser::OptionsAfterPositionalArgumentsMode::ParseAsOptions);
 
 	// Timeout option (-t, --timeout). Default value = 5.
 	QCommandLineOption timeout_option(QStringList() << "t"
@@ -180,8 +187,8 @@ int main(int argc, char **argv) {
 	// Resolve timeout option (-l, --lsl-resolve-timeout). Default value = 1.
 	QCommandLineOption resolve_timeout_option(QStringList() << "l"
 															<< "lsl-resolve-timeout",
-		"Time (in seconds) to wait during each LSL call to resolve stream(s).", "lsl-resolve-timeout",
-		"1");
+		"Time (in seconds) to wait during each LSL call to resolve stream(s).",
+		"lsl-resolve-timeout", "1");
 
 	// Verbose data option (-d, --detailed) to show all stream XML data.
 	QCommandLineOption verbose_option(QStringList() << "x"
@@ -195,10 +202,16 @@ int main(int argc, char **argv) {
 
 	// Recording timestamps option (-r, --recording-timestamps).
 	QCommandLineOption recording_timestamps_option(QStringList() << "r"
-															<< "recording-timestamps",
+																 << "recording-timestamps",
 		"Add (as an LSL channel) a timestamp indicating when the sample was recorded.");
 
-	QString query_examples = "XML stream query: \n"
+	// Sync level option (-p, --post-processing-flag).
+	QCommandLineOption recording_timestamps_option(QStringList() << "p"
+																 << "post-processing-flag",
+		"ADVANCED: Post processing flag (i.e. sync option) ADVANCED - .");
+
+	// Shows potential queries in help text.
+	QString query_examples = "XML stream query (xPath): \n"
 							 "    Example 1: \"type='EEG'\" \n"
 							 "    Example 2 (clause): \"name='Tobii' and type='Eyetracker'\" \n"
 							 "    Example 3 (wildcard): \"contains(name, 'Player 1 EEG')\" \n";
@@ -211,44 +224,50 @@ int main(int argc, char **argv) {
 
 
 	if (command == "record") {
-		parser.clearPositionalArguments();
+		// Add command description.
+		commandParser.setApplicationDescription("\nStart an LSL recording.\n");
 
 		// Add timeout option.
-		parser.addOption(timeout_option);
+		commandParser.addOption(timeout_option);
 
 		// Add resolve timeout option.
-		parser.addOption(resolve_timeout_option);
+		commandParser.addOption(resolve_timeout_option);
 
 		// Add collect offsets option.
-		parser.addOption(collect_offsets_option);
+		commandParser.addOption(collect_offsets_option);
 
 		// Add enable recording timestamps option.
-		parser.addOption(recording_timestamps_option);
+		commandParser.addOption(recording_timestamps_option);
 
-		// Describe recording command (basically for help only).
-		parser.addPositionalArgument(
-			"record", "Start an LSL recording.", "record [record_options]");
+		// Add sync default option.
+		commandParser.addOption(sync_default);
+
+		// Describe recording command (for usage portion of help text).
+		commandParser.addPositionalArgument("", "", "record");
 
 		// Query option.
-		parser.addPositionalArgument("query", query_examples);
+		commandParser.addPositionalArgument("query", query_examples);
 
 		// Filename option.
-		parser.addPositionalArgument("filename",
+		commandParser.addPositionalArgument("filename",
 			"Filename (or basename for CSV): \n"
 			"    Example 1: recording.xdf \n"
 			"    Example 2 (CSV base name): recording.csv - outputs "
 			"recording<stream_name_here>.csv for each stream.");
 
+		// Dummy arg added last to show [record_options] after other positional args (basically for help only).
+		commandParser.addPositionalArgument("", "", "[record_options]");
+
 		QStringList positional_args;
-		process_command(parser, app, positional_args, 2);
+		process_command(commandParser, app, positional_args, 2);
 		QString query = positional_args[1];
 		QString filename = positional_args[2];
-		QString timeout_str = parser.value(timeout_option);
-		QString resolve_timeout_str = parser.value(resolve_timeout_option);
+		QString timeout_str = commandParser.value(timeout_option);
+		QString resolve_timeout_str = commandParser.value(resolve_timeout_option);
 		double timeout = parse_timeout(timeout_str);
 		double resolve_timeout = parse_resolve_timeout(resolve_timeout_str);
-		bool collect_offsets = parser.isSet(collect_offsets_option);
-		bool recording_timestamps = parser.isSet(recording_timestamps_option);
+		bool collect_offsets = commandParser.isSet(collect_offsets_option);
+		bool recording_timestamps = commandParser.isSet(recording_timestamps_option);
 
 		// Simple validation of filename (must be csv or xdf(z) file).
 		file_type_t filetype;
@@ -260,66 +279,73 @@ int main(int argc, char **argv) {
 			std::stringstream msg;
 			msg << "Badly formed filename received: " << filename.toStdString()
 				<< " filename must end in .xdf, .xdfz or .csv.";
-			incorrect_usage(parser, msg.str());
+			incorrect_usage(commandParser, msg.str());
 		}
 		return execute_record_command(query, filename, filetype, timeout, resolve_timeout,
 			collect_offsets, recording_timestamps);
 	} else if (command == "list") {
-		parser.clearPositionalArguments();
+		// Add command description.
+		commandParser.setApplicationDescription("\nList all LSL streams.\n");
 
 		// Add timeout option.
-		parser.addOption(timeout_option);
+		commandParser.addOption(timeout_option);
 
 		// Add resolve timeout option.
-		parser.addOption(resolve_timeout_option);
+		commandParser.addOption(resolve_timeout_option);
 
 		// Add verbose option.
-		parser.addOption(verbose_option);
+		commandParser.addOption(verbose_option);
 
-		// Describe find command (basically for help only).
-		parser.addPositionalArgument("list", "List all LSL streams.", "list [list_options]");
+		// Describe list command (for usage portion of help text).
+		commandParser.addPositionalArgument("No arguments", "", "list");
+
+		// Dummy arg added last to show [list_options] after other positional args (basically help only).
+		commandParser.addPositionalArgument("", "", "[list_options]");
 
 		QStringList positional_args;
-		process_command(parser, app, positional_args, 0);
-		QString timeout_str = parser.value(timeout_option);
-		QString resolve_timeout_str = parser.value(resolve_timeout_option);
+		process_command(commandParser, app, positional_args, 0);
+		QString timeout_str = commandParser.value(timeout_option);
+		QString resolve_timeout_str = commandParser.value(resolve_timeout_option);
 		double timeout = parse_timeout(timeout_str);
 		double resolve_timeout = parse_resolve_timeout(resolve_timeout_str);
-		bool verbose = parser.isSet(verbose_option);
+		bool verbose = commandParser.isSet(verbose_option);
 		return execute_list_command(timeout, resolve_timeout, verbose);
 	} else if (command == "find") {
-		parser.clearPositionalArguments();
+		// Add command description.
+		commandParser.setApplicationDescription("\nFind LSL streams via query.\n");
 
 		// Add timeout option.
-		parser.addOption(timeout_option);
+		commandParser.addOption(timeout_option);
 
 		// Add resolve timeout option.
-		parser.addOption(resolve_timeout_option);
+		commandParser.addOption(resolve_timeout_option);
 
 		// Add verbose option.
-		parser.addOption(verbose_option);
+		commandParser.addOption(verbose_option);
 
-		// Describe find command (basically for help only).
-		parser.addPositionalArgument("find", "Find LSL stream(s).", "find [find_options]");
+		// Describe find command (for usage portion of help text).
+		commandParser.addPositionalArgument("", "", "find");
 
 		// Query option.
-		parser.addPositionalArgument("query", query_examples);
+		commandParser.addPositionalArgument("query", query_examples);
+
+		// Dummy arg added last to show [find_options] after other positional args (basically for help only).
+		commandParser.addPositionalArgument("", "", "[find_options]");
 
 		QStringList positional_args;
-		process_command(parser, app, positional_args, 1);
+		process_command(commandParser, app, positional_args, 1);
 		QString query = positional_args[1];
-		QString timeout_str = parser.value(timeout_option);
-		QString resolve_timeout_str = parser.value(resolve_timeout_option);
+		QString timeout_str = commandParser.value(timeout_option);
+		QString resolve_timeout_str = commandParser.value(resolve_timeout_option);
 		double timeout = parse_timeout(timeout_str);
 		double resolve_timeout = parse_resolve_timeout(resolve_timeout_str);
-		bool verbose = parser.isSet(verbose_option);
+		bool verbose = commandParser.isSet(verbose_option);
 		return execute_find_command(query, timeout, resolve_timeout, verbose);
 	} else {
-		parser.process(app);
-		if (parser.isSet("help")) { parser.showHelp(); }
+		parser.process(app); // Handles help and version args.
 		incorrect_usage(parser,
 			command.isEmpty()
-				? "Incorrect usage, no command provided"
+				? "Incorrect usage, no command or arguments provided"
 				: ("Incorrect usage, unknown command \"" + command.toStdString() + "\" provided"),
 			true);
 	}
