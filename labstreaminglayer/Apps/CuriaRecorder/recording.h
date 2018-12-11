@@ -101,8 +101,8 @@ public:
 	 */
 	recording(const std::string &filename, file_type_t file_type,
 		const std::vector<lsl::stream_info> &streams, const std::vector<std::string> &watchfor,
-		std::map<std::string, uint32_t> sync_options,
-		uint32_t sync_default = -1, // -1 means don't set sync.
+		std::map<std::string, int> sync_options,
+		int sync_default = -1, // -1 means don't set sync.
 		bool collect_offsets = true, bool recording_timestamps = true);
 
 	/** Destructor.
@@ -153,10 +153,10 @@ private:
 	std::list<thread_p> stream_threads_; // the spawned stream handling threads
 	thread_p boundary_thread_;			 // the spawned boundary-recording thread
 
-	// for enabling online sync options
-	std::map<std::string, uint32_t> sync_options_by_stream_;
+	// For enabling online sync options (per stream).
+	std::map<std::string, int> sync_options_by_stream_;
 
-	// Default sync option value.
+	// Default sync option.
 	int sync_default_;
 
 	// === recording thread functions ===

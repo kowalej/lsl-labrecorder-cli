@@ -84,7 +84,8 @@ inline void timed_join_or_detach(
 
 recording::recording(const std::string &filename, file_type_t filetype,
 	const std::vector<lsl::stream_info> &streams, const std::vector<std::string> &watchfor,
-	std::map<std::string, uint32_t> sync_options, uint32_t sync_default, bool collect_offsets, bool recording_timestamps)
+	std::map<std::string, int> sync_options, int sync_default, bool collect_offsets,
+	bool recording_timestamps)
 	: file_(filename, filetype), offsets_enabled_(collect_offsets),
 	  recording_timestamps_enabled_(recording_timestamps), unsorted_(false), streamid_(0),
 	  shutdown_(false), headers_to_finish_(0), streaming_to_finish_(0),
@@ -170,15 +171,21 @@ void recording::record_from_streaminfo(const lsl::stream_info &src, bool phase_l
 			// open an inlet to read from (and subscribe to data immediately)
 			in.reset(new lsl::stream_inlet(src));
 			auto it = sync_options_by_stream_.find(src.name() + " (" + src.hostname() + ")");
-			if (it != sync_options_by_stream_.end()) in->set_postprocessing(it->second);
-			else if (sync_default_ > -1) {
-				in->set_postprocessing(sync_default_);
+			try {
+				if (it != sync_options_by_stream_.end())
+					in->set_postprocessing(it->second);
+				else if (sync_default_ > -1) {
+					in->set_postprocessing(sync_default_);
+				}
+			} catch (std::invalid_argument &ex) {
+				std::cerr << "Set post processing failed for stream " << streamid
+						  << ". Check your provided flags value." << std::endl;
 			}
 
 			try {
 				in->open_stream(max_open_wait);
 				std::cout << "Opened the stream " << src.name() << "." << std::endl;
-			} catch (lsl::timeout_error &) {
+			} catch (lsl::timeout_error &ex) {
 				std::cout
 					<< "Subscribing to the stream " << src.name()
 					<< " is taking relatively long; collection from this stream will be delayed."
@@ -188,42 +195,44 @@ void recording::record_from_streaminfo(const lsl::stream_info &src, bool phase_l
 			// retrieve the stream header & get its XML version
 			info = in->info();
 			std::string stream_meta_data = info.as_xml();
-			file_.init_stream_file(streamid, info.name()); // Ensures we create enough files for each stream (in the case of CSVs).
+			file_.init_stream_file(streamid, info.name()); // Ensures we create enough files for
+														   // each stream (in the case of CSVs).
 			if (recording_timestamps_enabled_) {
-				// Inject 1 or 2 new channels to hold Unix recording timestamp for double, float, int, and string streams.
+				// Inject 1 or 2 new channels to hold Unix recording timestamp for double, float,
+				// int, and string streams.
 				int added_channels = 0;
 				switch (src.channel_format()) {
-					case lsl::cf_int32:
-						stream_meta_data = std::regex_replace(stream_meta_data,
-							std::regex(recording_timestamp_replace_node),
-							recording_timestamp_int32_channel_info);
-						added_channels = 2;
-						break;
-					case lsl::cf_float32:
-						stream_meta_data = std::regex_replace(stream_meta_data,
-							std::regex(recording_timestamp_replace_node),
-							recording_timestamp_float32_channel_info);
-						added_channels = 2;
-						break;
-					case lsl::cf_double64:
-						stream_meta_data = std::regex_replace(stream_meta_data,
-							std::regex(recording_timestamp_replace_node),
-							recording_timestamp_double_string_channel_info);
-						added_channels = 1;
-						break;
-					case lsl::cf_string:
-						stream_meta_data = std::regex_replace(stream_meta_data,
-							std::regex(recording_timestamp_replace_node),
-							recording_timestamp_double_string_channel_info);
-						added_channels = 1;
-						break;
+				case lsl::cf_int32:
+					stream_meta_data = std::regex_replace(stream_meta_data,
+						std::regex(recording_timestamp_replace_node),
+						recording_timestamp_int32_channel_info);
+					added_channels = 2;
+					break;
+				case lsl::cf_float32:
+					stream_meta_data = std::regex_replace(stream_meta_data,
+						std::regex(recording_timestamp_replace_node),
+						recording_timestamp_float32_channel_info);
+					added_channels = 2;
+					break;
+				case lsl::cf_double64:
+					stream_meta_data = std::regex_replace(stream_meta_data,
+						std::regex(recording_timestamp_replace_node),
+						recording_timestamp_double_string_channel_info);
+					added_channels = 1;
+					break;
+				case lsl::cf_string:
+					stream_meta_data = std::regex_replace(stream_meta_data,
+						std::regex(recording_timestamp_replace_node),
+						recording_timestamp_double_string_channel_info);
+					added_channels = 1;
+					break;
 				}
 				int channel_count = src.channel_count();
 				stream_meta_data = std::regex_replace(stream_meta_data,
 					std::regex("<channel_count>" + std::to_string(channel_count)),
 					"<channel_count>" + std::to_string(channel_count + added_channels));
 			}
-			
+
 			file_.write_stream_header(streamid, stream_meta_data);
 			std::cout << "Received header for stream " << src.name() << "." << std::endl;
 
@@ -343,8 +352,7 @@ void recording::record_offsets(
 			try {
 				offset = in->time_correction(2.5);
 			} catch (lsl::timeout_error &) {
-				std::cerr << "Timeout in time correction query for stream " << streamid
-						  << std::endl;
+				std::cerr << "Timeout in time correction query for stream " << streamid << std::endl;
 			}
 			file_.write_stream_offset(streamid, now, offset);
 			// also append to the offset lists
