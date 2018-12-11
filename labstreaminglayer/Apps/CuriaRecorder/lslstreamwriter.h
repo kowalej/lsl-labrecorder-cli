@@ -196,6 +196,7 @@ void LSLStreamWriter::write_data_chunk(streamid_t streamid, const std::vector<do
 
 	// XDF formatter.
 	if (filetype_ == file_type_t::xdf) {
+		// Generate [Samples] chunk contents...
 		auto raw_data = chunk.data();
 		write_fixlen_int(out, 0x0FFFFFFF); // Placeholder length, will be replaced later.
 		for (double ts : timestamps) {
@@ -236,13 +237,12 @@ void LSLStreamWriter::write_data_chunk_nested(streamid_t streamid,
 		throw std::runtime_error("timestamp / sample count mismatch");
 	auto n_channels = chunk[0].size();
 
-	// Generate [Samples] chunk contents...
-
 	std::ostringstream out;
 	std::string outstr;
 
 	// XDF formatter.
 	if (filetype_ == file_type_t::xdf) {
+		// Generate [Samples] chunk contents...
 		write_fixlen_int(out, 0x0FFFFFFF); // Placeholder length, will be replaced later.
 		auto sample_it = chunk.cbegin();
 		for (double ts : timestamps) {
@@ -250,10 +250,9 @@ void LSLStreamWriter::write_data_chunk_nested(streamid_t streamid,
 			write_ts(out, ts);
 			// Write sample, get the current position in the chunk array back.
 			write_sample_values(out, sample_it->data(), n_channels);
-			if (record_timestamp != -1) { write_ts(out, record_timestamp); }
 			sample_it++;
 		}
-		outstr(out.str());
+		std::string outstr(out.str());
 		// Replace length placeholder.
 		auto s = static_cast<uint32_t>(n_samples);
 		std::copy(
@@ -262,7 +261,15 @@ void LSLStreamWriter::write_data_chunk_nested(streamid_t streamid,
 
 	// CSV formatter.
 	else if (filetype_ == file_type_t::csv) {
-		outstr(out.str());
+		for (int i = 0; i < timestamps.size(); i++) {
+			outstr += std::to_string(timestamps[i]);
+			for (int j = 0; j < n_channels; j++) {
+				outstr += ",";
+				// Write sample values.
+				outstr += _to_csv_string(chunk[(i * n_channels) + j]);
+			}
+			outstr += "\n";
+		}
 	}
 
 	std::lock_guard<std::mutex> lock(*_get_write_mutex(&streamid));

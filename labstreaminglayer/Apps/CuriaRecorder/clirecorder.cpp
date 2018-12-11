@@ -35,7 +35,7 @@ bool find_streams(
 	clock_t start = clock();
 	std::vector<lsl::stream_info> all_streams;
 
-	std::cout << "Searching for streams..." << std::endl;
+	std::cout << "\nSearching for streams..." << std::endl;
 
 	signal(SIGINT, exitHandler); // Check for Ctrl + C hit to cancel.
 	while (NOEXIT) {
@@ -56,23 +56,28 @@ void display_stream_info(
 	std::vector<lsl::stream_info> &streams, bool matches, QString query, bool verbose = false) {
 	bool query_mode = !query.isEmpty();
 
+	// Extra line before info.
+	std::cout << std::endl;
+
 	if (matches) {
+		// Query matched is for find command, list command uses found.
 		std::string preamble = query_mode ? "Query matched " : "Found ";
 		std::cout << preamble << streams.size() << " stream" << (streams.size() > 1 ? "s:" : ":")
 				  << std::endl;
 		int index = 1;
 		for (auto &stream : streams) {
-			std::cout << index << ". " << stream.name() << " @ " << stream.hostname() << std::endl;
+			std::cout << "  " << index << ". " << stream.name() << " @ " << stream.hostname() << std::endl;
 			if (verbose) { std::cout << stream.as_xml() << std::endl; }
 			index++;
 		}
 		std::cout << std::endl;
 	} else {
 		if (query_mode) {
-			std::cout << "Query " << query.toStdString() << " did not match any streams.";
+			std::cout << "Query \"" << query.toStdString() << "\" did not match any streams." << std::endl;
 		} else {
-			std::cout << "No streams were found.";
+			std::cout << "No streams were found." << std::endl;
 		}
+		std::cout << std::endl;
 	}
 }
 
@@ -153,6 +158,12 @@ void process_command(QCommandLineParser &parser, QCoreApplication &app, QStringL
 		// and remove extra space caused by dummy option.
 		auto help_text =
 			parser.helpText().replace(" [options]", "").replace("Arguments:\n", "Arguments:");
+		if (expected_num_pos_args == 0) { 
+			// Remove empty arguments and extra space.
+			help_text = help_text.replace("Arguments:", "");
+			help_text.truncate(help_text.lastIndexOf("\n"));
+			help_text.truncate(help_text.lastIndexOf("\n"));
+		}
 		std::cout << help_text.toStdString() << std::endl;
 		exit(0);
 	}
@@ -203,13 +214,13 @@ int main(int argc, char **argv) {
 	// Timeout option (-t, --timeout). Default value = 5.
 	QCommandLineOption timeout_option(QStringList() << "t"
 													<< "timeout",
-		"Maximum overall time (in seconds) to wait while searching for stream(s).", 
+		"Maximum overall time (in seconds) to wait while searching for stream(s). Default = " TIMEOUT_DEFAULT_STR ".", 
 		"seconds", QString(TIMEOUT_DEFAULT_STR));
 
 	// Resolve timeout option (-l, --lsl-resolve-timeout). Default value = 1.
 	QCommandLineOption resolve_timeout_option(QStringList() << "l"
 															<< "lsl-resolve-timeout",
-		"Time (in seconds) to wait during each LSL call to resolve stream(s).",
+		"Time (in seconds) to wait during each LSL call to resolve stream(s). Default = " RESOLVE_TIMEOUT_DEFAULT_STR ".",
 		"seconds", QString(RESOLVE_TIMEOUT_DEFAULT_STR));
 
 	// Verbose data option (-d, --detailed) to show all stream XML data.
@@ -237,7 +248,7 @@ int main(int argc, char **argv) {
 	QString query_examples = "XML query (XPath):\n"
 							 "  Example 1: \"type='EEG'\"\n"
 							 "  Example 2 (clause): \"name='Tobii' and type='Eyetracker'\"\n"
-							 "  Example 3 (wildcard): \"contains(name, 'Player 1 EEG')\"\n";
+							 "  Example 3 (wildcard): \"contains(name, 'Player 1 EEG')\"";
 
 	// Call parse() to find out the command (if there is one).
 	parser.parse(QCoreApplication::arguments());
@@ -279,7 +290,7 @@ int main(int argc, char **argv) {
 		);
 
 		// Dummy arg added last to show [record_options] after other positional args (basically for help only).
-		commandParser.addPositionalArgument("", "", "[record_options]");
+		commandParser.addPositionalArgument(EMPTY_PLACEHOLDER, EMPTY_PLACEHOLDER, "[record_options]");
 
 		QStringList positional_args;
 		process_command(commandParser, app, positional_args, 2);
@@ -325,7 +336,7 @@ int main(int argc, char **argv) {
 		commandParser.addPositionalArgument(EMPTY_PLACEHOLDER, EMPTY_PLACEHOLDER, "list");
 
 		// Dummy arg added last to show [list_options] after other positional args (basically help only).
-		commandParser.addPositionalArgument("", "", "[list_options]");
+		commandParser.addPositionalArgument(EMPTY_PLACEHOLDER, EMPTY_PLACEHOLDER, "[list_options]");
 
 		QStringList positional_args;
 		process_command(commandParser, app, positional_args, 0);
@@ -355,7 +366,7 @@ int main(int argc, char **argv) {
 		commandParser.addPositionalArgument("query", query_examples);
 
 		// Dummy arg added last to show [find_options] after other positional args (basically for help only).
-		commandParser.addPositionalArgument("", "", "[find_options]");
+		commandParser.addPositionalArgument(EMPTY_PLACEHOLDER, EMPTY_PLACEHOLDER, "[find_options]");
 
 		QStringList positional_args;
 		process_command(commandParser, app, positional_args, 1);
