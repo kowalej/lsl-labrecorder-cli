@@ -21,7 +21,7 @@ const auto offset_interval = std::chrono::seconds(5);
 // approx. interval between resolves for outstanding streams on the watchlist, in seconds
 const double resolve_interval = 5;
 // approx. interval between pulling chunks from outlets
-const auto chunk_interval = std::chrono::milliseconds(500);
+const auto chunk_interval_default = std::chrono::milliseconds(500);
 // maximum waiting time for moving past the headers phase while recording
 const auto max_headers_wait = std::chrono::seconds(10);
 // maximum waiting time for moving into the footers phase while recording
@@ -103,7 +103,9 @@ public:
 		const std::vector<lsl::stream_info> &streams, const std::vector<std::string> &watchfor,
 		std::map<std::string, int> sync_options,
 		int sync_default = -1, // -1 means don't set sync.
-		bool collect_offsets = true, bool recording_timestamps = true);
+		bool collect_offsets = true,
+		bool recording_timestamps = true,
+		std::chrono::milliseconds chunk_interval = chunk_interval_default);
 
 	/** Destructor.
 	 * Stops the recording and closes the file.
@@ -158,6 +160,8 @@ private:
 
 	// Default sync option.
 	int sync_default_;
+
+	std::chrono::milliseconds chunk_interval_;
 
 	// === recording thread functions ===
 

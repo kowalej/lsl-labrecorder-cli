@@ -82,14 +82,25 @@ inline void timed_join_or_detach(
 	}
 }
 
-recording::recording(const std::string &filename, file_type_t filetype,
-	const std::vector<lsl::stream_info> &streams, const std::vector<std::string> &watchfor,
-	std::map<std::string, int> sync_options, int sync_default, bool collect_offsets,
-	bool recording_timestamps)
-	: file_(filename, filetype), offsets_enabled_(collect_offsets),
-	  recording_timestamps_enabled_(recording_timestamps), unsorted_(false), streamid_(0),
-	  shutdown_(false), headers_to_finish_(0), streaming_to_finish_(0),
-	  sync_options_by_stream_(std::move(sync_options)), sync_default_(sync_default) {
+recording::recording(
+	const std::string &filename, 
+	file_type_t filetype,
+	const std::vector<lsl::stream_info> &streams,
+	const std::vector<std::string> &watchfor,
+	std::map<std::string, int> sync_options,
+	int sync_default,
+	bool collect_offsets,
+	bool recording_timestamps,
+	std::chrono::milliseconds chunk_interval)
+	: file_(filename, filetype), 
+	  unsorted_(false), streamid_(0),
+	  shutdown_(false), headers_to_finish_(0),
+	  streaming_to_finish_(0),
+	  sync_options_by_stream_(std::move(sync_options)),
+	  sync_default_(sync_default),
+	  offsets_enabled_(collect_offsets),
+	  recording_timestamps_enabled_(recording_timestamps),
+	  chunk_interval_(chunk_interval) {
 	// create a recording thread for each stream
 	for (const auto &stream : streams)
 		stream_threads_.emplace_back(
@@ -454,7 +465,7 @@ void recording::typed_transfer_loop(streamid_t streamid, double srate, const inl
 			file_.write_data_chunk(streamid, timestamps, chunk, channelCount);
 			sample_count += timestamps.size();
 
-			next_pull += chunk_interval;
+			next_pull += chunk_interval_;
 			std::this_thread::sleep_until(next_pull);
 		}
 	} catch (std::exception &e) {

@@ -17,6 +17,9 @@
 #define POST_PROCESSING_DEFAULT -1
 #define POST_PROCESSING_DEFAULT_STR "-1"
 
+#define CHUNK_INTERVAL_DEFAULT 500
+#define CHUNK_INTERVAL_DEFAULT_STR "500"
+
 #define EMPTY_PLACEHOLDER " "
 
 bool NOEXIT = true;
@@ -66,14 +69,16 @@ void display_stream_info(
 				  << std::endl;
 		int index = 1;
 		for (auto &stream : streams) {
-			std::cout << "  " << index << ". " << stream.name() << " @ " << stream.hostname() << std::endl;
+			std::cout << "  " << index << ". " << stream.name() << " @ " << stream.hostname()
+					  << std::endl;
 			if (verbose) { std::cout << stream.as_xml() << std::endl; }
 			index++;
 		}
 		std::cout << std::endl;
 	} else {
 		if (query_mode) {
-			std::cout << "Query \"" << query.toStdString() << "\" did not match any streams." << std::endl;
+			std::cout << "Query \"" << query.toStdString() << "\" did not match any streams."
+					  << std::endl;
 		} else {
 			std::cout << "No streams were found." << std::endl;
 		}
@@ -98,7 +103,8 @@ int execute_find_command(QString query, double timeout, double resolve_timeout, 
 }
 
 int execute_record_command(QString query, QString filename, file_type_t file_type, double timeout,
-	double resolve_timeout, bool collect_offsets, bool recording_timestamps, int post_processing_flag) {
+	double resolve_timeout, bool collect_offsets, bool recording_timestamps,
+	int post_processing_flag, std::chrono::milliseconds chunk_interval) {
 	std::vector<lsl::stream_info> streams;
 	bool matches = find_streams(query, timeout, resolve_timeout, streams);
 	display_stream_info(streams, matches, query);
@@ -108,18 +114,13 @@ int execute_record_command(QString query, QString filename, file_type_t file_typ
 
 
 	std::vector<std::string> watchfor;
-	std::map<std::string, int> sync_options; // Per stream sync options (post processing) not yet supported.
+	std::map<std::string, int>
+		sync_options; // Per stream sync options (post processing) not yet supported.
 	std::cout << "-------------------------------------------------------" << std::endl;
 	std::cout << "--- Starting the recording, press Ctrl+C to quit... ---" << std::endl;
 	std::cout << "-------------------------------------------------------" << std::endl;
-	recording r(
-		filename.toStdString(),
-		file_type, streams,
-		watchfor,
-		sync_options,
-		post_processing_flag,
-		collect_offsets,
-		recording_timestamps);
+	recording r(filename.toStdString(), file_type, streams, watchfor, sync_options,
+		post_processing_flag, collect_offsets, recording_timestamps, chunk_interval);
 	signal(SIGINT, exitHandler); // Check for Ctrl + C hit to cancel.
 	while (NOEXIT) { std::this_thread::sleep_for(std::chrono::milliseconds(1000)); }
 	return 0;
@@ -134,18 +135,48 @@ void incorrect_usage(QCommandLineParser &parser, std::string message, bool show_
 	exit(2);
 }
 
-double parse_timeout(QString timeout_str) {
-	return timeout_str.isEmpty() ? TIMEOUT_DEFAULT : std::stod(timeout_str.toStdString());
+void invalid_arg(QString name) {
+	std::cout << "Invalid value provided for argument: " << name.toStdString() << "." << std::endl;
+	exit(2);
 }
 
-double parse_resolve_timeout(QString resolve_timeout_str) {
-	return resolve_timeout_str.isEmpty() ? RESOLVE_TIMEOUT_DEFAULT
-										 : std::stod(resolve_timeout_str.toStdString());
+double parse_timeout(QString timeout_str, QStringList option_names) {
+	try {
+		return timeout_str.isEmpty() ? TIMEOUT_DEFAULT : std::stod(timeout_str.toStdString());
+	} 
+	catch (std::invalid_argument) {} catch (std::out_of_range) {}
+	invalid_arg(option_names.join(", "));
 }
 
-int parse_post_processing(QString post_processing_str) {
+double parse_resolve_timeout(QString resolve_timeout_str, QStringList option_names) {
+	try {
+		return resolve_timeout_str.isEmpty() ? RESOLVE_TIMEOUT_DEFAULT
+											 : std::stod(resolve_timeout_str.toStdString());
+	}
+	catch (std::invalid_argument) {}
+	catch (std::out_of_range) {}
+	invalid_arg(option_names.join(", "));
+}
+
+int parse_post_processing(QString post_processing_str, QStringList option_names) {
+	try {
 	return post_processing_str.isEmpty() ? POST_PROCESSING_DEFAULT
 										 : std::stoi(post_processing_str.toStdString());
+	}
+	catch (std::invalid_argument) {}
+	catch (std::out_of_range) {}
+	invalid_arg(option_names.join(", "));
+}
+
+std::chrono::milliseconds parse_chunk_interval(QString chunk_interval_str, QStringList option_names) {
+	try {
+	return chunk_interval_str.isEmpty()
+			   ? std::chrono::milliseconds(CHUNK_INTERVAL_DEFAULT)
+			   : std::chrono::milliseconds(std::stoi(chunk_interval_str.toStdString()));
+	}
+	catch (std::invalid_argument) {}
+	catch (std::out_of_range) {}
+	invalid_arg(option_names.join(", "));
 }
 
 void process_command(QCommandLineParser &parser, QCoreApplication &app, QStringList &pos_args,
@@ -154,11 +185,11 @@ void process_command(QCommandLineParser &parser, QCoreApplication &app, QStringL
 	parser.process(app);
 	parser.process(QCoreApplication::arguments());
 	if (parser.isSet("help")) {
-		// Remove initial [options] tag since we are running subcommand, 
+		// Remove initial [options] tag since we are running subcommand,
 		// and remove extra space caused by dummy option.
 		auto help_text =
 			parser.helpText().replace(" [options]", "").replace("Arguments:\n", "Arguments:");
-		if (expected_num_pos_args == 0) { 
+		if (expected_num_pos_args == 0) {
 			// Remove empty arguments and extra space.
 			help_text = help_text.replace("Arguments:", "");
 			help_text.truncate(help_text.lastIndexOf("\n"));
@@ -214,13 +245,15 @@ int main(int argc, char **argv) {
 	// Timeout option (-t, --timeout). Default value = 5.
 	QCommandLineOption timeout_option(QStringList() << "t"
 													<< "timeout",
-		"Maximum overall time (in seconds) to wait while searching for stream(s). Default = " TIMEOUT_DEFAULT_STR ".", 
+		"Maximum overall time (in seconds) to wait while searching for stream(s). Default "
+		"= " TIMEOUT_DEFAULT_STR ".",
 		"seconds", QString(TIMEOUT_DEFAULT_STR));
 
 	// Resolve timeout option (-l, --lsl-resolve-timeout). Default value = 1.
 	QCommandLineOption resolve_timeout_option(QStringList() << "l"
 															<< "lsl-resolve-timeout",
-		"Time (in seconds) to wait during each LSL call to resolve stream(s). Default = " RESOLVE_TIMEOUT_DEFAULT_STR ".",
+		"Time (in seconds) to wait during each LSL call to resolve stream(s). Default "
+		"= " RESOLVE_TIMEOUT_DEFAULT_STR ".",
 		"seconds", QString(RESOLVE_TIMEOUT_DEFAULT_STR));
 
 	// Verbose data option (-d, --detailed) to show all stream XML data.
@@ -240,9 +273,17 @@ int main(int argc, char **argv) {
 
 	// Post processing flag option (-p, --post-flag).
 	QCommandLineOption post_processing_option(QStringList() << "p"
-														    << "post-process",
-		"Post processing flags (i.e. online sync options). Defaults to no post-processing. See docs for details.",
+															<< "post-process",
+		"Post processing flags (i.e. online sync options). Defaults to no post-processing. See "
+		"docs for details.",
 		"int", QString(POST_PROCESSING_DEFAULT_STR));
+
+	// Chunk interval flag option (-c, --chunk-interval).
+	QCommandLineOption chunk_interval_option(QStringList() << "c"
+														   << "chunk-interval",
+		"Time (in milliseconds) to wait between pulling LSL chunks. Default "
+		"= " CHUNK_INTERVAL_DEFAULT_STR ".",
+		"milliseconds", QString(CHUNK_INTERVAL_DEFAULT_STR));
 
 	// Shows potential queries in help text.
 	QString query_examples = "XML query (XPath):\n"
@@ -269,9 +310,12 @@ int main(int argc, char **argv) {
 
 		// Add collect offsets option.
 		commandParser.addOption(collect_offsets_option);
-
+		
 		// Add enable recording timestamps option.
 		commandParser.addOption(recording_timestamps_option);
+
+		// Add chunk interval option.
+		commandParser.addOption(chunk_interval_option);
 
 		// Add post processing option.
 		commandParser.addOption(post_processing_option);
@@ -286,11 +330,13 @@ int main(int argc, char **argv) {
 		commandParser.addPositionalArgument("filename",
 			"Filename (or basename for CSV):\n"
 			"  Example 1: \"recording.xdf\"\n"
-			"  Example 2 (CSV base name): \"recording.csv\" - outputs recording<stream_name_here>.csv for each stream."
-		);
+			"  Example 2 (CSV base name): \"recording.csv\" - outputs "
+			"recording<stream_name_here>.csv for each stream.");
 
-		// Dummy arg added last to show [record_options] after other positional args (basically for help only).
-		commandParser.addPositionalArgument(EMPTY_PLACEHOLDER, EMPTY_PLACEHOLDER, "[record_options]");
+		// Dummy arg added last to show [record_options] after other positional args (basically for
+		// help only).
+		commandParser.addPositionalArgument(
+			EMPTY_PLACEHOLDER, EMPTY_PLACEHOLDER, "[record_options]");
 
 		QStringList positional_args;
 		process_command(commandParser, app, positional_args, 2);
@@ -299,15 +345,19 @@ int main(int argc, char **argv) {
 		QString timeout_str = commandParser.value(timeout_option);
 		QString resolve_timeout_str = commandParser.value(resolve_timeout_option);
 		QString post_processing_str = commandParser.value(post_processing_option);
-		double timeout = parse_timeout(timeout_str);
-		double resolve_timeout = parse_resolve_timeout(resolve_timeout_str);
-		int post_processing_flag = parse_post_processing(post_processing_str);
+		QString chunk_interval_str = commandParser.value(chunk_interval_option);
+
+		double timeout = parse_timeout(timeout_str, timeout_option.names());
+		double resolve_timeout = parse_resolve_timeout(resolve_timeout_str, resolve_timeout_option.names());
+		int post_processing_flag = parse_post_processing(post_processing_str, post_processing_option.names());
+		std::chrono::milliseconds chunk_interval = parse_chunk_interval(chunk_interval_str, chunk_interval_option.names());
+
 		bool collect_offsets = commandParser.isSet(collect_offsets_option);
 		bool recording_timestamps = commandParser.isSet(recording_timestamps_option);
 
 		// Simple validation of filename (must be csv or xdf(z) file).
 		file_type_t filetype;
-		if (filename.endsWith(".csv")) {
+ 			if (filename.endsWith(".csv")) {
 			filetype = file_type_t::csv;
 		} else if (filename.endsWith(".xdf")) {
 			filetype = file_type_t::xdf;
@@ -318,7 +368,7 @@ int main(int argc, char **argv) {
 			incorrect_usage(commandParser, msg.str());
 		}
 		return execute_record_command(query, filename, filetype, timeout, resolve_timeout,
-			collect_offsets, recording_timestamps, post_processing_flag);
+			collect_offsets, recording_timestamps, post_processing_flag, chunk_interval);
 	} else if (command == "list") {
 		// Add command description.
 		commandParser.setApplicationDescription("\nList all LSL streams.\n");
@@ -335,15 +385,16 @@ int main(int argc, char **argv) {
 		// Describe list command (for usage portion of help text).
 		commandParser.addPositionalArgument(EMPTY_PLACEHOLDER, EMPTY_PLACEHOLDER, "list");
 
-		// Dummy arg added last to show [list_options] after other positional args (basically help only).
+		// Dummy arg added last to show [list_options] after other positional args (basically help
+		// only).
 		commandParser.addPositionalArgument(EMPTY_PLACEHOLDER, EMPTY_PLACEHOLDER, "[list_options]");
 
 		QStringList positional_args;
 		process_command(commandParser, app, positional_args, 0);
 		QString timeout_str = commandParser.value(timeout_option);
 		QString resolve_timeout_str = commandParser.value(resolve_timeout_option);
-		double timeout = parse_timeout(timeout_str);
-		double resolve_timeout = parse_resolve_timeout(resolve_timeout_str);
+		double timeout = parse_timeout(timeout_str, timeout_option.names());
+		double resolve_timeout = parse_resolve_timeout(resolve_timeout_str, resolve_timeout_option.names());
 		bool verbose = commandParser.isSet(verbose_option);
 		return execute_list_command(timeout, resolve_timeout, verbose);
 	} else if (command == "find") {
@@ -365,7 +416,8 @@ int main(int argc, char **argv) {
 		// Query option.
 		commandParser.addPositionalArgument("query", query_examples);
 
-		// Dummy arg added last to show [find_options] after other positional args (basically for help only).
+		// Dummy arg added last to show [find_options] after other positional args (basically for
+		// help only).
 		commandParser.addPositionalArgument(EMPTY_PLACEHOLDER, EMPTY_PLACEHOLDER, "[find_options]");
 
 		QStringList positional_args;
@@ -373,8 +425,8 @@ int main(int argc, char **argv) {
 		QString query = positional_args[1];
 		QString timeout_str = commandParser.value(timeout_option);
 		QString resolve_timeout_str = commandParser.value(resolve_timeout_option);
-		double timeout = parse_timeout(timeout_str);
-		double resolve_timeout = parse_resolve_timeout(resolve_timeout_str);
+		double timeout = parse_timeout(timeout_str, timeout_option.names());
+		double resolve_timeout = parse_resolve_timeout(resolve_timeout_str, resolve_timeout_option.names());
 		bool verbose = commandParser.isSet(verbose_option);
 		return execute_find_command(query, timeout, resolve_timeout, verbose);
 	} else {
