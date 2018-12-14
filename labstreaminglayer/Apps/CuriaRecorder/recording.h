@@ -145,6 +145,8 @@ private:
 							// recording jobs and are now ready to write a footer
 	std::mutex phase_mut_;  // a mutex to protect the phase state
 
+	std::mutex print_mut_;	// Mutex for sync writing to console.
+
 	// data structure to collect the time offsets for every stream
 	offset_lists
 		offset_lists_; // the clock offset lists for each stream (to be written into the footer)
@@ -164,6 +166,18 @@ private:
 	std::chrono::milliseconds chunk_interval_;
 
 	// === recording thread functions ===
+
+	/// Safely print good message to console from multiple threads.
+	void safe_print(const std::string &msg) { 
+		std::lock_guard<std::mutex> lock(print_mut_);
+		std::cout << msg << std::endl;
+	}
+
+	/// Safely print error message to console from multiple threads.
+	void safe_print_error(const std::string &msg) {
+		std::lock_guard<std::mutex> lock(print_mut_);
+		std::cerr << msg << std::endl;
+	}
 
 	/// record from results of a query (spawn a recording thread for every result produced by the
 	/// query)

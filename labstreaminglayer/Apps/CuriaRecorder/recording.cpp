@@ -76,7 +76,7 @@ inline void timed_join_or_detach(
 		std::this_thread::sleep_for(std::chrono::milliseconds(500));
 	}
 	if (!threads.empty()) {
-		std::cout << threads.size() << " stream threads still running!" << std::endl;
+		std::cerr << threads.size() << " stream threads still running!" << std::endl;
 		for (auto &t : threads) t->detach();
 		threads.clear();
 	}
@@ -121,12 +121,12 @@ recording::~recording() {
 		// stop the threads
 		timed_join_or_detach(stream_threads_, max_join_wait);
 		if (!timed_join(boundary_thread_, max_join_wait + boundary_interval)) {
-			std::cout << "boundary_thread didn't finish in time!" << std::endl;
+			safe_print_error("boundary_thread didn't finish in time!");
 			boundary_thread_->detach();
 		}
-		std::cout << "Closing the file." << std::endl;
+		safe_print("Closing the file(s).");
 	} catch (std::exception &e) {
-		std::cout << "Error while closing the recording: " << e.what() << std::endl;
+		safe_print_error("Error while closing the recording: " + std::string(e.what()));
 	}
 }
 
@@ -135,7 +135,8 @@ void recording::record_from_query_results(const std::string &query) {
 		std::set<std::string> known_uids;		// set of previously seen stream uid's
 		std::set<std::string> known_source_ids; // set of previously seen source id's
 		std::list<thread_p> threads;			// our spawned threads
-		std::cout << "Watching for a stream with properties " << query << std::endl;
+		
+		safe_print("Watching for a stream with properties " + query);
 		while (!shutdown_) {
 			// periodically re-resolve the query
 			std::vector<lsl::stream_info> results = lsl::resolve_stream(query, 0, resolve_interval);
@@ -146,8 +147,7 @@ void recording::record_from_query_results(const std::string &query) {
 					// and doesn't have a previously seen source id...
 					if (!(!result.source_id().empty() &&
 							(!known_source_ids.count(result.source_id())))) {
-						std::cout << "Found a new stream named " << result.name()
-								  << ", adding it to the recording." << std::endl;
+						safe_print("Found a new stream named " + result.name() + ", adding it to the recording.");
 						// start a new recording thread
 						threads.emplace_back(new std::thread(
 							&recording::record_from_streaminfo, this, result, false));
@@ -161,7 +161,7 @@ void recording::record_from_query_results(const std::string &query) {
 		// wait for all our threads to join
 		timed_join_or_detach(threads, max_join_wait);
 	} catch (std::exception &e) {
-		std::cout << "Error in the record_from_query_results thread: " << e.what() << std::endl;
+		safe_print_error("Error in the record_from_query_results thread: " + std::string(e.what()));
 	}
 }
 
@@ -189,18 +189,16 @@ void recording::record_from_streaminfo(const lsl::stream_info &src, bool phase_l
 					in->set_postprocessing(sync_default_);
 				}
 			} catch (std::invalid_argument &ex) {
-				std::cerr << "Set post processing failed for stream " << streamid
-						  << ". Check your provided flags value." << std::endl;
+				safe_print_error("Set post processing failed for stream " + std::to_string(streamid) + ". Check your provided flags value.");
 			}
 
 			try {
 				in->open_stream(max_open_wait);
-				std::cout << "Opened the stream " << src.name() << "." << std::endl;
+				safe_print("Opened the stream " + src.name() + ".");
 			} catch (lsl::timeout_error &ex) {
-				std::cout
-					<< "Subscribing to the stream " << src.name()
-					<< " is taking relatively long; collection from this stream will be delayed."
-					<< std::endl;
+				safe_print_error(
+					"Subscribing to the stream " + src.name() +
+					" is taking relatively long; collection from this stream will be delayed.");
 			}
 
 			// retrieve the stream header & get its XML version
@@ -244,8 +242,8 @@ void recording::record_from_streaminfo(const lsl::stream_info &src, bool phase_l
 					"<channel_count>" + std::to_string(channel_count + added_channels));
 			}
 
-			file_.write_stream_header(streamid, stream_meta_data);
-			std::cout << "Received header for stream " << src.name() << "." << std::endl;
+			file_.write_stream_header(streamid, stream_meta_data, in->get_channel_count() + (recording_timestamps_enabled_ ? 1 : 0));
+			safe_print("Received header for stream " + src.name() + ".");
 
 			leave_headers_phase(phase_locked);
 		} catch (std::exception &) {
@@ -262,7 +260,7 @@ void recording::record_from_streaminfo(const lsl::stream_info &src, bool phase_l
 			// "forgot to turn on" before the recording started; in that case the file would have to
 			// be post-processed to be in properly sorted (seekable) format
 			enter_streaming_phase(phase_locked);
-			std::cout << "Started data collection for stream " << src.name() << "." << std::endl;
+			safe_print("Started data collection for stream " + src.name() + ".");
 
 			// now write the actual sample chunks...
 			switch (src.channel_format()) {
@@ -325,14 +323,14 @@ void recording::record_from_streaminfo(const lsl::stream_info &src, bool phase_l
 			}
 			file_.write_stream_footer(streamid, footer.str());
 
-			std::cout << "Wrote footer for stream " << src.name() << "." << std::endl;
+			safe_print("Wrote footer for stream " + src.name() + ".");
 			leave_footers_phase(phase_locked);
 		} catch (std::exception &) {
 			leave_footers_phase(phase_locked);
 			throw;
 		}
 	} catch (std::exception &e) {
-		std::cout << "Error in the record_from_streaminfo thread: " << e.what() << std::endl;
+		safe_print_error("Error in the record_from_streaminfo thread: " + std::string(e.what()));
 	}
 }
 
@@ -347,7 +345,7 @@ void recording::record_boundaries() {
 			}
 		}
 	} catch (std::exception &e) {
-		std::cout << "Error in the record_boundaries thread: " << e.what() << std::endl;
+		safe_print_error(std::string("Error in the record_boundaries thread: ") + e.what());
 	}
 }
 
@@ -355,25 +353,25 @@ void recording::record_offsets(
 	streamid_t streamid, const inlet_p &in, std::atomic<bool> &offset_shutdown) noexcept {
 	try {
 		while (!shutdown_ && !offset_shutdown) {
-			// sleep for the interval
+			// Sleep for the interval.
 			std::this_thread::sleep_for(offset_interval);
-			// query the time offset
+			// Query the time offset.
 			double offset = std::numeric_limits<double>::infinity();
 			double now = lsl::local_clock();
 			try {
 				offset = in->time_correction(2.5);
 			} catch (lsl::timeout_error &) {
-				std::cerr << "Timeout in time correction query for stream " << streamid << std::endl;
+				safe_print_error("Timeout in time correction query for stream " + streamid);
 			}
 			file_.write_stream_offset(streamid, now, offset);
-			// also append to the offset lists
+			// Also append to the offset lists.
 			std::lock_guard<std::mutex> lock(offset_mut_);
 			offset_lists_[streamid].emplace_back(now - offset, offset);
 		}
-	} catch (std::exception &e) {
-		std::cout << "Error in the record_offsets thread: " << e.what() << std::endl;
+	} catch (std::exception &e) { 
+		safe_print_error(std::string("Error in the record_offsets thread: ") + e.what());
 	}
-	std::cout << "Offsets thread is finished" << std::endl;
+	safe_print("Offsets thread is finished");
 }
 
 void recording::enter_headers_phase(bool phase_locked) {
@@ -433,9 +431,10 @@ void recording::typed_transfer_loop(streamid_t streamid, double srate, const inl
 		std::vector<T> chunk;
 		std::vector<double> timestamps;
 		int channelCount = 0;
+		double lsl_timeout = chunk_interval_.count() / 1000.00;
 
 		// Pull the first sample.
-		first_timestamp = last_timestamp = in->pull_sample(chunk);
+		first_timestamp = last_timestamp = in->pull_sample(chunk, lsl_timeout);
 		timestamps.push_back(first_timestamp);
 		channelCount = in->get_channel_count();
 
@@ -445,17 +444,17 @@ void recording::typed_transfer_loop(streamid_t streamid, double srate, const inl
 
 		file_.write_data_chunk(streamid, timestamps, chunk, channelCount);
 
-		auto next_pull = Clock::now();
 		while (!shutdown_) {
 			// Get a chunk from the stream.
-			in->pull_chunk_multiplexed(chunk, &timestamps);
+			in->pull_chunk_multiplexed(chunk, &timestamps, lsl_timeout);
 			// For each sample...
 			for (double &ts : timestamps) {
 				// If the time stamp can be deduced from the previous one...
 				if (last_timestamp + sample_interval == ts) {
 					last_timestamp = ts + sample_interval;
-				} else
+				} else {
 					last_timestamp = ts;
+				}
 			}
 			channelCount = in->get_channel_count();
 			if (recording_timestamps_enabled_) {
@@ -465,11 +464,10 @@ void recording::typed_transfer_loop(streamid_t streamid, double srate, const inl
 			file_.write_data_chunk(streamid, timestamps, chunk, channelCount);
 			sample_count += timestamps.size();
 
-			next_pull += chunk_interval_;
-			std::this_thread::sleep_until(next_pull);
+			std::this_thread::sleep_for(chunk_interval_);
 		}
 	} catch (std::exception &e) {
-		std::cerr << "Error in transfer thread: " << e.what() << std::endl;
+		safe_print_error(std::string("Error in transfer thread: ") + e.what());
 		offset_shutdown = true;
 		if (offsets_enabled_) { timed_join_or_detach(offset_thread); }
 		throw;

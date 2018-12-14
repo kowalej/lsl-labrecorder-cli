@@ -22,5 +22,6 @@ print("now sending markers...")
 markernames = ['Test', 'Blah', 'Marker', 'XXX', 'Testtest', 'Test-1-2-3']
 while True:
     # pick a sample to send an wait for a bit
-    outlet.push_sample([random.choice(markernames)])
-time.sleep(random.random()*3)
+		#outlet.push_sample([random.choice(markernames)])
+		time.sleep(random.random()*3)
+		pass

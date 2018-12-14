@@ -96,13 +96,13 @@ void LSLStreamWriter::init_stream_file(streamid_t streamid, std::string stream_n
 	}
 }
 
-void LSLStreamWriter::write_stream_header(streamid_t streamid, const std::string &content) {
+void LSLStreamWriter::write_stream_header(streamid_t streamid, const std::string &content, int channel_count) {
 	std::lock_guard<std::mutex> lock(*_get_write_mutex(&streamid));
 	_write_chunk(chunk_tag_t::streamheader, content, &streamid);
 
 	// Write the file header for CSV.
 	if (filetype_ == file_type_t::csv){
-		std::string header_row = "lsl_time_stamp,";
+		std::string header_row;
 
 		// We need to make a safe copy of the vector to let rapidxml parse.
 		std::vector<char> content_safe;
@@ -113,12 +113,29 @@ void LSLStreamWriter::write_stream_header(streamid_t streamid, const std::string
 		xml_document<> doc;
 		doc.parse<0>(&content_safe[0]);
 		xml_node<> *root_node = doc.first_node("info")->first_node("desc")->first_node("channels");
-		for (xml_node<> *channel_node = root_node->first_node("channel"); channel_node;
-			 channel_node = channel_node->next_sibling()) {
-			std::string channel_name(channel_node->first_node("label")->value());
-			header_row += channel_name;
-			if (channel_node->next_sibling()) { header_row += ","; }
+
+		bool header_set = false;
+		if (root_node) {
+			int channel_meta_num = 0;
+			for (xml_node<> *channel_node = root_node->first_node("channel"); channel_node;
+					channel_node = channel_node->next_sibling()) {
+				std::string channel_name(channel_node->first_node("label")->value());
+				header_row += channel_name;
+				if (channel_node->next_sibling()) { header_row += ","; }
+				channel_meta_num += 1;
+			}
+			// Final check to see that we got all the channel labels setup nicely.
+			if (channel_meta_num == channel_count) { header_set = true; }
 		}
+
+		if (!header_set) {
+			header_row += "channel_1";
+			for (int i = 1; i < channel_count; i++) {
+				header_row += ",channel_" + std::to_string(i + 1);
+			}
+		}
+
+		header_row = "lsl_time_stamp," + header_row;
 		header_row += "\n";
 		_write_chunk(chunk_tag_t::samples, header_row, &streamid);
 	}

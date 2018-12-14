@@ -127,7 +127,7 @@ public:
 	 * @param streamid Numeric stream identifier
 	 * @param content XML-formatted stream header
 	 */
-	void write_stream_header(streamid_t streamid, const std::string &content);
+	void write_stream_header(streamid_t streamid, const std::string &content, int channel_count);
 	/**
 	 * @brief write_stream_footer
 	 * @see https://github.com/sccn/xdf/wiki/Specifications#streamfooter-chunk
