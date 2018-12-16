@@ -371,7 +371,7 @@ void recording::record_offsets(
 	} catch (std::exception &e) { 
 		safe_print_error(std::string("Error in the record_offsets thread: ") + e.what());
 	}
-	safe_print("Offsets thread is finished");
+	safe_print("Offsets thread is finished.");
 }
 
 void recording::enter_headers_phase(bool phase_locked) {
