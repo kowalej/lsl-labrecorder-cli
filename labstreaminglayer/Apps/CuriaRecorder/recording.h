@@ -2,6 +2,7 @@
 #define RECORDING_H
 
 #include "LSLStreamWriter.h"
+#include "logger.h"
 #include <atomic>
 #include <chrono>
 #include <condition_variable>
