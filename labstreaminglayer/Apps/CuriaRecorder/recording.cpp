@@ -435,8 +435,8 @@ void recording::typed_transfer_loop(streamid_t streamid, double srate, const inl
 		double lsl_timeout = (chunk_interval_.count() / 1000.00) * 0.85;  // LSL timeout slighly before chunk interval.
 
 		// Pull the first sample.
-		first_timestamp = 0.0;
-		while (!shutdown_ && first_timestamp == 0.0) {
+		first_timestamp = -1;
+		while (!shutdown_ && first_timestamp == -1) {
 			first_timestamp = last_timestamp = in->pull_sample(chunk, lsl_timeout);
 		}
 		timestamps.push_back(first_timestamp);

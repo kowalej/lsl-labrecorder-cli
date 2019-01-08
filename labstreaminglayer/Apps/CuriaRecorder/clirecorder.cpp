@@ -25,7 +25,7 @@
 bool NOEXIT = true;
 
 void exitHandler(int signum) {
-	std::cout << "Exit signal recieved, shutting down.\n";
+	std::cout << "Exit signal recieved, shutting down...\n";
 	NOEXIT = false;
 }
 
