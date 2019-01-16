@@ -432,12 +432,12 @@ void recording::typed_transfer_loop(streamid_t streamid, double srate, const inl
 		std::vector<T> chunk;
 		std::vector<double> timestamps;
 		int channelCount = 0;
-		double lsl_timeout = (chunk_interval_.count() / 1000.00) * 0.85;  // LSL timeout slighly before chunk interval.
 
 		// Pull the first sample.
 		first_timestamp = -1;
 		while (!shutdown_ && first_timestamp == -1) {
-			first_timestamp = last_timestamp = in->pull_sample(chunk, lsl_timeout);
+			first_timestamp = last_timestamp =
+				in->pull_sample(chunk, chunk_interval_.count() / 1000.00); // LSL timeout = chunk interval.
 		}
 		timestamps.push_back(first_timestamp);
 		channelCount = in->get_channel_count();
@@ -448,9 +448,13 @@ void recording::typed_transfer_loop(streamid_t streamid, double srate, const inl
 
 		file_.write_data_chunk(streamid, timestamps, chunk, channelCount);
 
+		// Continuously process samples (pull chunks).
 		while (!shutdown_) {
+			// Get chunk start time.
+			auto start_time = std::chrono::high_resolution_clock::now();
+
 			// Get a chunk from the stream.
-			in->pull_chunk_multiplexed(chunk, &timestamps, lsl_timeout);
+			in->pull_chunk_multiplexed(chunk, &timestamps, 1e-6);
 			// For each sample...
 			for (double &ts : timestamps) {
 				// If the time stamp can be deduced from the previous one...
@@ -468,7 +472,10 @@ void recording::typed_transfer_loop(streamid_t streamid, double srate, const inl
 			file_.write_data_chunk(streamid, timestamps, chunk, channelCount);
 			sample_count += timestamps.size();
 
-			std::this_thread::sleep_for(chunk_interval_);
+			// Sleep for remainder of chunk interval.
+			auto end_time = std::chrono::high_resolution_clock::now();
+			auto delta_time = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time);
+			std::this_thread::sleep_for(chunk_interval_ - delta_time);
 		}
 	} catch (std::exception &e) {
 		Logger::log_error(std::string("Error in transfer thread: ") + e.what());

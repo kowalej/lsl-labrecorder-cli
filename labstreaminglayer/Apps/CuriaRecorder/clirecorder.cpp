@@ -22,7 +22,7 @@
 
 #define EMPTY_PLACEHOLDER " "
 
-bool NOEXIT = true;
+volatile bool NOEXIT = true;
 
 void exitHandler(int signum) {
 	std::cout << "Exit signal recieved, shutting down...\n";
@@ -112,7 +112,6 @@ int execute_record_command(QString query, QString filename, file_type_t file_typ
 	// End command if no matches found.
 	if (!matches) { return 2; }
 
-
 	std::vector<std::string> watchfor;
 	std::map<std::string, int>
 		sync_options; // Per stream sync options (post processing) not yet supported.
@@ -122,7 +121,7 @@ int execute_record_command(QString query, QString filename, file_type_t file_typ
 	recording r(filename.toStdString(), file_type, streams, watchfor, sync_options,
 		post_processing_flag, collect_offsets, recording_timestamps, chunk_interval);
 	signal(SIGINT, exitHandler); // Check for Ctrl + C hit to cancel.
-	while (NOEXIT) { std::this_thread::sleep_for(std::chrono::milliseconds(1000)); }
+	while (NOEXIT) { std::this_thread::sleep_for(std::chrono::milliseconds(500)); }
 	return 0;
 }
 
@@ -212,7 +211,7 @@ int main(int argc, char **argv) {
 #pragma region Basic app setup
 	QCoreApplication app(argc, argv);
 	QCoreApplication::setApplicationName("Curia Recorder");
-	QCoreApplication::setApplicationVersion("1.0");
+	QCoreApplication::setApplicationVersion("1.04");
 
 #pragma endregion
 
