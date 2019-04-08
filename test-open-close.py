@@ -1,8 +1,5 @@
 import os
-import json
 import winctrlc
-import sys 
-import time
 from subprocess import Popen, PIPE, signal
 import win32api
 import win32con
@@ -12,8 +9,8 @@ curia_xdf_recorder_path = "D://Documents//Curia//CuriaRecorder//labstreaminglaye
 
 pid = Popen([curia_xdf_recorder_path, 'record', "*", 'test.xdf', '-r', '-o'], stdin=PIPE) # call subprocess
 
-v = input()
-print("sending ctrl c")
+v = input('Opening stream, press any key to stop the recording')
+print('Sending Ctrl + C')
 
 try:
     pid.send_signal(signal.CTRL_C_EVENT)

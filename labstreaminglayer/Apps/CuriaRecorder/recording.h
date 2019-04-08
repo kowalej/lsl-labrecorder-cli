@@ -68,6 +68,9 @@ const std::string recording_timestamp_int32_channel_info =
 	"\n\t\t\t</channel>"
 	"\n\t\t</channels>";
 
+// Value for timestamp when no timestamp/sample has been received yet.
+const auto no_timestamp_val = 0.0;
+
 using streamid_t = uint32_t;
 
 // pointer to a thread

@@ -211,7 +211,7 @@ int main(int argc, char **argv) {
 #pragma region Basic app setup
 	QCoreApplication app(argc, argv);
 	QCoreApplication::setApplicationName("Curia Recorder");
-	QCoreApplication::setApplicationVersion("1.04");
+	QCoreApplication::setApplicationVersion("1.05");
 
 #pragma endregion
 

@@ -434,19 +434,24 @@ void recording::typed_transfer_loop(streamid_t streamid, double srate, const inl
 		int channelCount = 0;
 
 		// Pull the first sample.
-		first_timestamp = -1;
-		while (!shutdown_ && first_timestamp == -1) {
+		first_timestamp = no_timestamp_val;
+		while (!shutdown_ && first_timestamp == no_timestamp_val) {
 			first_timestamp = last_timestamp =
 				in->pull_sample(chunk, chunk_interval_.count() / 1000.00); // LSL timeout = chunk interval.
 		}
-		timestamps.push_back(first_timestamp);
-		channelCount = in->get_channel_count();
 
-		if (recording_timestamps_enabled_) {
-			inject_recording_timestamps_(&chunk, channelCount, timestamps.size());
+		// If we just shutdown, we may have just gotten a good single sample, 
+		// so check if the sample is valid instead of just for shutdown parameter.
+		if (first_timestamp != no_timestamp_val) {
+			timestamps.push_back(first_timestamp);
+			channelCount = in->get_channel_count();
+
+			if (recording_timestamps_enabled_) {
+				inject_recording_timestamps_(&chunk, channelCount, timestamps.size());
+			}
+
+			file_.write_data_chunk(streamid, timestamps, chunk, channelCount);
 		}
-
-		file_.write_data_chunk(streamid, timestamps, chunk, channelCount);
 
 		// Continuously process samples (pull chunks).
 		while (!shutdown_) {
